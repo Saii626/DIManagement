@@ -11,8 +11,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 import com.google.common.graph.ImmutableGraph;
@@ -23,6 +21,7 @@ import org.slf4j.LoggerFactory;
 
 import app.saikat.DIManagement.Exceptions.ClassNotUnderDIException;
 import app.saikat.DIManagement.Exceptions.InsufficientDependency;
+import app.saikat.DIManagement.Exceptions.NoProviderFoundForClassException;
 
 class ObjectMap {
 
@@ -42,13 +41,11 @@ class ObjectMap {
     public synchronized <T> T get(DIBean bean)
             throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
         if (!objectMap.containsKey(bean)) {
-            Set<DIBean> allBeans = dependencyGraph.nodes();
+
+            DIBean b = Utils.getProviderBean(dependencyGraph.nodes(), bean);
 
             // Order in which instances will be created
-            List<DIBean> dependencyList = getBuildListFor(bean).stream()
-                    .map(b -> Utils.getProviderBean(allBeans, b)).collect(Collectors.toList());
-
-            logger.debug("dependencyList for {} is: {}", bean, Utils.getStringRepresentationOf(dependencyList));
+            List<DIBean> dependencyList = getBuildListFor(b);
 
             for (DIBean d : dependencyList) {
                 // dependency bean should already be present or, if is class, no args constructor or no args @inject constructor
@@ -67,38 +64,15 @@ class ObjectMap {
 
     private Object buildDependency(DIBean bean)
             throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-        if (bean.isClass()) {
-            logger.debug("Building class: {}", bean.getType().getSimpleName());
-
-            Constructor<?> toUse = Utils.getAppropriateConstructor(bean.getType().getDeclaredConstructors());
-            toUse.setAccessible(true);
-
-            List<DIBean> dependencies = Utils.getParameterBeans(toUse.getParameterTypes(),
-                    toUse.getParameterAnnotations(), QUALIFIERS);
-            List<Object> params = new ArrayList<>();
-
-            for (DIBean parameter : dependencies) {
-                Object obj = objectMap.get(parameter);
-                if (obj == null) {
-                    params.add(null);
-                    throw new InsufficientDependency(bean.getType(), parameter.getType());
-                }
-                params.add(obj);
-            }
-
-            Object o = toUse.newInstance(params.toArray());
-            return o;
-        } else {
-
+        if (bean.isMethod()) {
             logger.debug("Building method: {}", bean.getMethod().getName());
             Method method = bean.getMethod();
 
-            Class<?> declaringClass = method.getDeclaringClass();
-            DIBean enclosingClassBean = new DIBean(declaringClass,
-                    Utils.getQualifierAnnotation(declaringClass.getAnnotations(), QUALIFIERS));
-
             Object parent = null;
             if (!Modifier.isStatic(method.getModifiers())) {
+                Class<?> declaringClass = method.getDeclaringClass();
+                DIBean enclosingClassBean = new DIBean(declaringClass,
+                        Utils.getQualifierAnnotation(declaringClass.getAnnotations(), QUALIFIERS));
                 // If not present in map then the bean is not a leaf.
                 if (!objectMap.containsKey(enclosingClassBean)) {
                     throw new InsufficientDependency(method.getReturnType(), enclosingClassBean.getType());
@@ -108,18 +82,19 @@ class ObjectMap {
 
             List<DIBean> dependencies = Utils.getParameterBeans(method.getParameterTypes(),
                     method.getParameterAnnotations(), QUALIFIERS);
-            List<Object> params = new ArrayList<>();
 
-            for (DIBean parameter : dependencies) {
-                Object obj = objectMap.get(parameter);
-                if (obj == null) {
-                    params.add(null);
-                    throw new InsufficientDependency(bean.getType(), parameter.getType());
-                }
-                params.add(obj);
-            }
+            return method.invoke(parent, getArgumentsForDependencies(dependencies).toArray());
 
-            return method.invoke(parent, params.toArray());
+        } else {
+            logger.debug("Building class: {}", bean.getType().getSimpleName());
+
+            Constructor<?> toUse = Utils.getAppropriateConstructor(bean.getType().getDeclaredConstructors());
+            toUse.setAccessible(true);
+
+            List<DIBean> dependencies = Utils.getParameterBeans(toUse.getParameterTypes(),
+                    toUse.getParameterAnnotations(), QUALIFIERS);
+
+            return toUse.newInstance(getArgumentsForDependencies(dependencies).toArray());
         }
     }
 
@@ -131,11 +106,42 @@ class ObjectMap {
             throw new ClassNotUnderDIException(bean.getType());
         }
 
+
         Traverser<DIBean> traverser = Traverser.forGraph(dependencyGraph);
         Iterable<DIBean> dfsIterator = traverser.depthFirstPostOrder(bean);
 
         List<DIBean> list = Lists.newArrayList(dfsIterator);
+        logger.debug("All beans {}", Utils.getStringRepresentationOf(dependencyGraph.nodes()));
+        logger.debug("dependencyList {}: {}", bean, Utils.getStringRepresentationOf(list));
+
+        // Weird dont know why all dependencies are of class type. Hack to overcome this
+        // List<DIBean> dependencies = new ArrayList<>(list.size());
+        // for (DIBean dep : list) {
+        //     logger.debug("bean: {} and providedBean: {}", dep, Utils.getProviderBean(dependencyGraph.nodes(), dep));
+        //     dependencies.add(Utils.getProviderBean(dependencyGraph.nodes(), dep));
+        // }
+        // list = list.stream().map(l -> Utils.getProviderBean(dependencyGraph.nodes(), l)).collect(Collectors.toList());
+        // logger.debug("dependencyList {}: {}", bean, Utils.getStringRepresentationOf(list));
         return Collections.unmodifiableList(list);
     }
 
+    private List<Object> getArgumentsForDependencies(List<DIBean> beans) {
+
+        List<Object> params = new ArrayList<>();
+
+        for (DIBean parameter : beans) {
+            Object obj = objectMap.get(parameter);
+            if (obj == null) {
+                if (parameter.getType().isPrimitive()) {
+                    params.add(0);
+                } else {
+                    params.add(null);
+                }
+                throw new NoProviderFoundForClassException(parameter.getClass());
+            }
+            params.add(obj);
+        }
+        return params;
+
+    }
 }

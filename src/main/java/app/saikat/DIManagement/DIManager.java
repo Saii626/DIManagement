@@ -16,6 +16,8 @@ import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 import javax.inject.Qualifier;
 
+import com.google.common.graph.ImmutableGraph;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,29 +54,25 @@ public class DIManager {
 
             List<ClassInfo> allClasses = results.getAllClasses();
 
-            Set<DIBean> allBeans = Collections.synchronizedSet(new HashSet<>());
             Set<DIBean> initBeans = Collections.synchronizedSet(new HashSet<>());
 
-            logger.debug("Scanning objects({}) in package", allClasses.size());
+            logger.debug("Scanning {} classes in package {}", allClasses.size(), packageToScan);
 
-            scanAndAddProvidesAnnotation(allClasses, allBeans);
+            scanAndAddProvidesAnnotation(allClasses);
 
-            scanAndAddInjectAnnotation(allClasses, allBeans, initBeans);
+            scanAndAddInjectAnnotation(allClasses, initBeans);
 
-            Map<DIBean, Method> postConstructBeans =  scanAndAddPostConstructAnnotation(allClasses, allBeans, initBeans);
+            Map<DIBean, Method> postConstructBeans =  scanAndAddPostConstructAnnotation(allClasses, initBeans);
 
-            if (logger.isDebugEnabled()) {
-                logger.debug("Found beans: {}", Utils.getStringRepresentationOf(allBeans));
-            }
-
-            // Complete dependency graph generate
-            dependencyGraph.addAll(allBeans);
+            ImmutableGraph<DIBean> depGraph = dependencyGraph.getDependencyGraph();
+            Set<DIBean> allBeans = depGraph.nodes();
 
             logger.info("Dependency graph generation complete");
-            logger.info("All scanned beans: {}", Utils.getStringRepresentationOf(dependencyGraph.getAllBeans()));
+            logger.info("All scanned beans: {}", Utils.getStringRepresentationOf(allBeans));
 
-            objectMap = new ObjectMap(QUALIFIERS, dependencyGraph.getDependencyGraph());
+            objectMap = new ObjectMap(QUALIFIERS, depGraph);
             buildObjects(initBeans);
+
             invokePostConstruct(postConstructBeans);
         } 
     }
@@ -95,7 +93,7 @@ public class DIManager {
         logger.info("Invoking @PostConstruct methods");
         for (Map.Entry<DIBean, Method> entry : postConstructMap.entrySet()) {
             try {
-                logger.debug("Invoking {} in class {}", entry.getValue().getName(), entry.getKey().provides().getSimpleName());
+                logger.debug("Invoking {} in class {}", entry.getValue().getName(), entry.getKey().getType().getSimpleName());
                 entry.getValue().setAccessible(true);
                 Object parent = objectMap.get(entry.getKey());
                 entry.getValue().invoke(parent);
@@ -116,8 +114,10 @@ public class DIManager {
 
     }
 
-    private static void scanAndAddProvidesAnnotation(List<ClassInfo> allClasses, Set<DIBean> allBeans) {
+    private static void scanAndAddProvidesAnnotation(List<ClassInfo> allClasses) {
         logger.debug("Scanning for @Provides annotation");
+
+        Set<DIBean> provideBeans = Collections.synchronizedSet(new HashSet<>());
 
         allClasses.parallelStream().forEach(cls -> {
             logger.trace("Scanning {}", cls.getSimpleName());
@@ -127,11 +127,11 @@ public class DIManager {
             if (info != null) {
                 Class<?> loadedClass = cls.loadClass();
                 DIBean bean = new DIBean(loadedClass,
-                        Utils.getQualifierAnnotation(loadedClass.getAnnotations(), QUALIFIERS), true);
+                        Utils.getQualifierAnnotation(loadedClass.getAnnotations(), QUALIFIERS));
                 logger.debug("Bean {} (@Provides annotated class) scanned and added", bean);
 
-                synchronized (allBeans) {
-                    allBeans.add(bean);
+                synchronized (provideBeans) {
+                    provideBeans.add(bean);
                 }
             }
 
@@ -142,21 +142,26 @@ public class DIManager {
                 AnnotationInfo providesAnnotation = method.getAnnotationInfo(PROVIDES);
                 if (providesAnnotation != null) {
                     Method m = method.loadClassAndGetMethod();
-                    DIBean bean = new DIBean(m, Utils.getQualifierAnnotation(m.getAnnotations(), QUALIFIERS), true);
+                    DIBean bean = new DIBean(m, Utils.getQualifierAnnotation(m.getAnnotations(), QUALIFIERS));
                     logger.debug("Bean {} (@Provides annotated function) scanned and added", bean);
 
-                    synchronized (allBeans) {
-                        allBeans.add(bean);
+                    synchronized (provideBeans) {
+                        provideBeans.add(bean);
                     }
                 }
             });
         });
+
+        logger.debug("Scan for @Provides bean complete. Found {}", Utils.getStringRepresentationOf(provideBeans));
+        dependencyGraph.addBeans(provideBeans);
     }
 
-    private static void scanAndAddInjectAnnotation(List<ClassInfo> allClasses, Set<DIBean> allBeans,
+    private static void scanAndAddInjectAnnotation(List<ClassInfo> allClasses,
             Set<DIBean> initBeans) {
 
         logger.debug("Scanning for @Inject annotation");
+
+        Set<DIBean> injectBeans = Collections.synchronizedSet(new HashSet<>());
 
         allClasses.parallelStream().forEach(cls -> {
             logger.trace("Scanning {}", cls.getSimpleName());
@@ -172,23 +177,27 @@ public class DIManager {
                     DIBean bean = new DIBean(c, Utils.getQualifierAnnotation(c.getAnnotations(), QUALIFIERS));
                     logger.debug("Bean {} (@Inject annotated) scanned and added", bean);
 
-                    synchronized (allBeans) {
-                        allBeans.add(bean);
-                    }
-
                     synchronized (initBeans) {
                         initBeans.add(bean);
+                    }
+
+                    synchronized (injectBeans) {
+                        injectBeans.add(bean);
                     }
                 }
             });
         });
+
+        logger.debug("Scan for @Inject bean complete. Found {}", Utils.getStringRepresentationOf(injectBeans));
+        dependencyGraph.addBeans(injectBeans);
     }
 
-    private static Map<DIBean, Method> scanAndAddPostConstructAnnotation(List<ClassInfo> allClasses, Set<DIBean> allBeans,
+    private static Map<DIBean, Method> scanAndAddPostConstructAnnotation(List<ClassInfo> allClasses,
             Set<DIBean> initBeans) {
         logger.debug("Scanning for @PostConstruct annotation");
 
         Map<DIBean, Method> map = new HashMap<>();
+        Set<DIBean> postConstructBeans = Collections.synchronizedSet(new HashSet<>());
 
         allClasses.parallelStream().forEach(cls -> {
             logger.debug("Scanning {}", cls.getSimpleName());
@@ -204,18 +213,21 @@ public class DIManager {
                     DIBean bean = new DIBean(c, Utils.getQualifierAnnotation(c.getAnnotations(), QUALIFIERS));
                     logger.debug("Bean {} (@PostConstruct annotated) scanned and added", bean);
 
-                    synchronized (allBeans) {
-                        allBeans.add(bean);
-                    }
-
                     synchronized (initBeans) {
                         initBeans.add(bean);
+                    }
+
+                    synchronized (postConstructBeans) {
+                        postConstructBeans.add(bean);
                     }
 
                     map.put(bean, method.loadClassAndGetMethod());
                 }
             });
         });
+
+        logger.debug("Scan for @PostConstruct bean complete. Found {}", Utils.getStringRepresentationOf(postConstructBeans));
+        dependencyGraph.addBeans(postConstructBeans);
 
         return Collections.unmodifiableMap(map);
     }

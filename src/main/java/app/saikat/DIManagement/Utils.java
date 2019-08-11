@@ -8,8 +8,6 @@ import java.util.List;
 
 import javax.inject.Inject;
 
-import app.saikat.DIManagement.Exceptions.ClassNotUnderDIException;
-
 class Utils {
 
     static Class<? extends Annotation> getQualifierAnnotation(Annotation[] annotations,
@@ -56,8 +54,13 @@ class Utils {
     }
 
     static DIBean getProviderBean(Collection<DIBean> beans, DIBean provider) {
-        return beans.stream().filter(b -> b.equals(provider)).findFirst()
-                .orElseThrow(() -> new ClassNotUnderDIException(provider.getType()));
+        for (DIBean b : beans) {
+            if (b.equals(provider)) {
+                return b;
+            }
+        }
+
+        return provider;
     }
 
 
