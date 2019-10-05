@@ -1,17 +1,28 @@
 package app.saikat.DIManagement;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNoException;
+
+import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.junit.Test;
 
+import app.saikat.DIManagement.Configurations.ClassAnnotationConfig;
+import app.saikat.DIManagement.Configurations.MethodAnnotationConfig;
+import app.saikat.DIManagement.Configurations.ScanConfig;
 import app.saikat.DIManagement.Exceptions.CircularDependencyException;
+import app.saikat.DIManagement.Exceptions.ClassNotUnderDIException;
 
 public class DITester {
 
     @Test
-    public void generateObjects_1() {
-        DIManager.initialize("app.saikat.DIManagement.Test_1");
+    public void generateObjects_1() throws ClassNotUnderDIException {
+        DIManager.initialize(ScanConfig.newBuilder()
+                .addPackageToScan("app.saikat.DIManagement.Test_1")
+                .build());
 
         app.saikat.DIManagement.Test_1.A a = DIManager.get(app.saikat.DIManagement.Test_1.A.class);
         app.saikat.DIManagement.Test_1.B b = DIManager.get(app.saikat.DIManagement.Test_1.B.class);
@@ -30,9 +41,11 @@ public class DITester {
     }
 
     @Test
-    public void generateObjects_2() {
+    public void generateObjects_2() throws ClassNotUnderDIException {
         try {
-            DIManager.initialize("app.saikat.DIManagement.Test_2");
+            DIManager.initialize(ScanConfig.newBuilder()
+                    .addPackageToScan("app.saikat.DIManagement.Test_2")
+                    .build());
         } catch (CircularDependencyException e) {
             assumeNoException(e);
         }
@@ -42,8 +55,10 @@ public class DITester {
     }
 
     @Test
-    public void generateObjects_3() {
-        DIManager.initialize("app.saikat.DIManagement.Test_3");
+    public void generateObjects_3() throws ClassNotUnderDIException {
+        DIManager.initialize(ScanConfig.newBuilder()
+                .addPackageToScan("app.saikat.DIManagement.Test_3")
+                .build());
 
         app.saikat.DIManagement.Test_3.A a = DIManager.get(app.saikat.DIManagement.Test_3.A.class);
         app.saikat.DIManagement.Test_3.B b = DIManager.get(app.saikat.DIManagement.Test_3.B.class);
@@ -62,17 +77,23 @@ public class DITester {
     }
 
     @Test
-    public void generateObjects_4() {
-        DIManager.initialize("app.saikat.DIManagement.Test_4");
+    public void generateObjects_4() throws ClassNotUnderDIException {
+        DIManager.initialize(ScanConfig.newBuilder()
+                .addPackageToScan("app.saikat.DIManagement.Test_4")
+                .build());
 
         app.saikat.DIManagement.Test_4.A a = DIManager.get(app.saikat.DIManagement.Test_4.A.class);
-        app.saikat.DIManagement.Test_4.B b = DIManager.get(app.saikat.DIManagement.Test_4.B.class, app.saikat.DIManagement.Test_4.Q1.class);
+        app.saikat.DIManagement.Test_4.B b = DIManager.get(app.saikat.DIManagement.Test_4.B.class,
+                app.saikat.DIManagement.Test_4.Q1.class);
         app.saikat.DIManagement.Test_4.C c = DIManager.get(app.saikat.DIManagement.Test_4.C.class);
         app.saikat.DIManagement.Test_4.D d0 = DIManager.get(app.saikat.DIManagement.Test_4.D.class);
-        app.saikat.DIManagement.Test_4.D d1 = DIManager.get(app.saikat.DIManagement.Test_4.D.class, app.saikat.DIManagement.Test_4.Q1.class);
-        app.saikat.DIManagement.Test_4.D d2 = DIManager.get(app.saikat.DIManagement.Test_4.D.class, app.saikat.DIManagement.Test_4.Q2.class);
+        app.saikat.DIManagement.Test_4.D d1 = DIManager.get(app.saikat.DIManagement.Test_4.D.class,
+                app.saikat.DIManagement.Test_4.Q1.class);
+        app.saikat.DIManagement.Test_4.D d2 = DIManager.get(app.saikat.DIManagement.Test_4.D.class,
+                app.saikat.DIManagement.Test_4.Q2.class);
         app.saikat.DIManagement.Test_4.E e = DIManager.get(app.saikat.DIManagement.Test_4.E.class);
-        app.saikat.DIManagement.Test_4.F f = DIManager.get(app.saikat.DIManagement.Test_4.F.class, app.saikat.DIManagement.Test_4.Q2.class);
+        app.saikat.DIManagement.Test_4.F f = DIManager.get(app.saikat.DIManagement.Test_4.F.class,
+                app.saikat.DIManagement.Test_4.Q2.class);
         app.saikat.DIManagement.Test_4.G g = DIManager.get(app.saikat.DIManagement.Test_4.G.class);
         app.saikat.DIManagement.Test_4.H h = DIManager.get(app.saikat.DIManagement.Test_4.H.class);
 
@@ -89,5 +110,81 @@ public class DITester {
         assertEquals("D1 val", d1.getType(), "Type: Q1");
         assertEquals("D2 val", d2.getType(), "Type: Q2");
         assertEquals("E PostConstruct", e.getStr(), "Hello world");
+    }
+
+    @Test
+    public void generateObjects_5() throws ClassNotUnderDIException {
+        ScanConfig config = ScanConfig.newBuilder()
+                .addAnnotationConfig(ClassAnnotationConfig.getBuilder()
+                        .forAnnotation(app.saikat.DIManagement.Test_5.ClassAnnot_1.class)
+                        .autoBuild(true)
+                        .checkDependency(true)
+                        .build())
+                .addAnnotationConfig(ClassAnnotationConfig.getBuilder()
+                        .forAnnotation(app.saikat.DIManagement.Test_5.ClassAnnot_2.class)
+                        .autoBuild(false)
+                        .checkDependency(false)
+                        .build())
+                .addPackageToScan("app.saikat.DIManagement.Test_5")
+                .build();
+
+        DIManager.initialize(config);
+
+        app.saikat.DIManagement.Test_5.A a = DIManager.get(app.saikat.DIManagement.Test_5.A.class,
+                app.saikat.DIManagement.Test_5.ClassAnnot_1.class);
+        app.saikat.DIManagement.Test_5.B b = DIManager.get(app.saikat.DIManagement.Test_5.B.class);
+
+        Set<Class<?>> actual = new HashSet<>(
+                DIManager.getAnnotatedClasses(app.saikat.DIManagement.Test_5.ClassAnnot_2.class));
+        Set<Class<?>> expectedClasses = new HashSet<>();
+        expectedClasses.add(app.saikat.DIManagement.Test_5.C.class);
+        expectedClasses.add(app.saikat.DIManagement.Test_5.E.class);
+
+        assertEquals("A.B vs B", a.getB(), b);
+        assertTrue("ClassAnnot_2 annoted classes", actual.equals(expectedClasses));
+        assertEquals("Class C not instantiated", app.saikat.DIManagement.Test_5.C.getState(), "Not instanciated");
+    }
+
+    @Test
+    public void generateObjects_6() throws ClassNotUnderDIException, NoSuchMethodException, SecurityException {
+        ScanConfig config = ScanConfig.newBuilder()
+                .addAnnotationConfig(MethodAnnotationConfig.getBuilder()
+                        .forAnnotation(app.saikat.DIManagement.Test_6.MethodAnnot_1.class)
+                        .autoBuild(true)
+                        .checkDependency(false)
+                        .autoInvoke(true)
+                        .build())
+                .addAnnotationConfig(MethodAnnotationConfig.getBuilder()
+                        .forAnnotation(app.saikat.DIManagement.Test_6.MethodAnnot_2.class)
+                        .autoBuild(true)
+                        .checkDependency(true)
+                        .autoInvoke(true)
+                        .build())
+                .addAnnotationConfig(MethodAnnotationConfig.getBuilder()
+                        .forAnnotation(app.saikat.DIManagement.Test_6.MethodAnnot_3.class)
+                        .autoBuild(false)
+                        .checkDependency(true)
+                        .autoInvoke(false)
+                        .build())
+                .addPackageToScan("app.saikat.DIManagement.Test_6")
+                .build();
+
+        DIManager.initialize(config);
+
+        app.saikat.DIManagement.Test_6.A a = DIManager.get(app.saikat.DIManagement.Test_6.A.class);
+        app.saikat.DIManagement.Test_6.B b = DIManager.get(app.saikat.DIManagement.Test_6.B.class);
+        app.saikat.DIManagement.Test_6.C c = DIManager.get(app.saikat.DIManagement.Test_6.C.class);
+        app.saikat.DIManagement.Test_6.D d = DIManager.get(app.saikat.DIManagement.Test_6.D.class);
+
+        Set<Method> actual = new HashSet<>(DIManager.getAnnotatedMethods(app.saikat.DIManagement.Test_6.MethodAnnot_3.class));
+        Set<Method> expected = new HashSet<>();
+        expected.add(app.saikat.DIManagement.Test_6.C.class.getMethod("setE", app.saikat.DIManagement.Test_6.E.class));
+        expected.add(app.saikat.DIManagement.Test_6.E.class.getMethod("testFunc"));
+
+        assertEquals("A.B vs B", a.getB(), b);
+        assertEquals("A state", a.getStr(), "State 2");
+        assertEquals("C.D vs D", c.getD(), d);
+        assertEquals("C.E vs E", c.getE(), null);
+        assertTrue("MethodAmmot_3 annoted classes", actual.equals(expected));
     }
 }

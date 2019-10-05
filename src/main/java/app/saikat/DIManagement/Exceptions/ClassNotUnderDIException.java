@@ -1,6 +1,6 @@
 package app.saikat.DIManagement.Exceptions;
 
-public class ClassNotUnderDIException extends RuntimeException {
+public class ClassNotUnderDIException extends Exception {
 
 	private static final long serialVersionUID = 1L;
 
