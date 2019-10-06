@@ -166,7 +166,7 @@ public class DIManager {
                         DIBean bean = new DIBean(loadedClass,
                                 Utils.getQualifierAnnotation(loadedClass.getAnnotations(), QUALIFIERS), true);
 
-                        safeAdd(provideBeans, bean);
+                        safeAdd(provideBeans, Collections.singleton(bean));
                         logger.debug("Bean {} (@Provides annotated class) scanned and added", bean);
                     }
 
@@ -182,7 +182,7 @@ public class DIManager {
                                     DIBean bean = new DIBean(m,
                                             Utils.getQualifierAnnotation(m.getAnnotations(), QUALIFIERS), true);
 
-                                    safeAdd(provideBeans, bean);
+                                    safeAdd(provideBeans, Collections.singleton(bean));
                                     logger.debug("Bean {} (@Provides annotated function) scanned and added", bean);
                                 }
                             });
@@ -215,8 +215,8 @@ public class DIManager {
                                     DIBean bean = new DIBean(c,
                                             Utils.getQualifierAnnotation(c.getAnnotations(), QUALIFIERS), true);
 
-                                    safeAdd(initBeans, bean);
-                                    safeAdd(injectBeans, bean);
+                                    safeAdd(initBeans, Collections.singleton(bean));
+                                    safeAdd(injectBeans, Collections.singleton(bean));
                                     logger.debug("Bean {} (@Inject annotated) scanned and added", bean);
                                 }
                             });
@@ -248,13 +248,13 @@ public class DIManager {
 
         BiConsumer<AnnotationConfig, DIBean> checkedAddInitBeans = (entry, bean) -> {
             if (entry.isAutoBuild()) {
-                safeAdd(initBeans, bean);
+                safeAdd(initBeans, Collections.singleton(bean));
             }
         };
 
         BiConsumer<MethodAnnotationConfig, DIBean> checkedAddAutoinvokeBeans = (entry, bean) -> {
             if (entry.autoInvoke()) {
-                safeAdd(autoInvokeBeans, bean);
+                safeAdd(autoInvokeBeans, Collections.singleton(bean));
             }
         };
 
@@ -272,7 +272,7 @@ public class DIManager {
                             DIBean bean = new DIBean(loadedClass, entry.first.getAnnotation(),
                                     entry.first.checkDependency());
                             checkedAddInitBeans.accept(entry.first, bean);
-                            safeAdd(beans, bean);
+                            safeAdd(beans, Collections.singleton(bean));
                             addToMap(annotatedClasses, entry.first.getAnnotation(), loadedClass);
                         });
                     }
@@ -299,15 +299,15 @@ public class DIManager {
                                                 entry.first.isAutoBuild());
                                         checkedAddInitBeans.accept(entry.first, parent);
                                         checkedAddAutoinvokeBeans.accept(entry.first, bean);
-                                        safeAdd(beans, parent);
-                                        safeAdd(beans, bean);
+                                        safeAdd(beans, Collections.singleton(parent));
+                                        safeAdd(beans, Collections.singleton(bean));
                                         addToMap(annotatedMethods, entry.first.getAnnotation(), m);
 
                                         // Need to add dependencies to initBeans. Else dependencies won't be instanciated
                                         if (entry.first.autoInvoke() && entry.first.checkDependency()) {
                                             Utils.getParameterBeans(m.getParameterTypes(), m.getParameterAnnotations(),
                                                     QUALIFIERS)
-                                                    .forEach(b -> safeAdd(initBeans, b));
+                                                    .forEach(b -> safeAdd(initBeans, Collections.singleton(b)));
                                         }
                                     });
                                 }
@@ -318,9 +318,9 @@ public class DIManager {
         dependencyGraph.addBeans(beans);
     }
 
-    private static <T> void safeAdd(Collection<T> collection, T item) {
+    private static <T> void safeAdd(Collection<T> collection, Collection<T> items) {
         synchronized (collection) {
-            collection.add(item);
+            collection.addAll(items);
         }
     }
 

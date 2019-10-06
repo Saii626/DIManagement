@@ -21,7 +21,7 @@ public class DITester {
     @Test
     public void generateObjects_1() throws ClassNotUnderDIException {
         DIManager.initialize(ScanConfig.newBuilder()
-                .addPackageToScan("app.saikat.DIManagement.Test_1")
+                .addPackagesToScan("app.saikat.DIManagement.Test_1")
                 .build());
 
         app.saikat.DIManagement.Test_1.A a = DIManager.get(app.saikat.DIManagement.Test_1.A.class);
@@ -44,7 +44,7 @@ public class DITester {
     public void generateObjects_2() throws ClassNotUnderDIException {
         try {
             DIManager.initialize(ScanConfig.newBuilder()
-                    .addPackageToScan("app.saikat.DIManagement.Test_2")
+                    .addPackagesToScan("app.saikat.DIManagement.Test_2")
                     .build());
         } catch (CircularDependencyException e) {
             assumeNoException(e);
@@ -57,7 +57,7 @@ public class DITester {
     @Test
     public void generateObjects_3() throws ClassNotUnderDIException {
         DIManager.initialize(ScanConfig.newBuilder()
-                .addPackageToScan("app.saikat.DIManagement.Test_3")
+                .addPackagesToScan("app.saikat.DIManagement.Test_3")
                 .build());
 
         app.saikat.DIManagement.Test_3.A a = DIManager.get(app.saikat.DIManagement.Test_3.A.class);
@@ -79,7 +79,7 @@ public class DITester {
     @Test
     public void generateObjects_4() throws ClassNotUnderDIException {
         DIManager.initialize(ScanConfig.newBuilder()
-                .addPackageToScan("app.saikat.DIManagement.Test_4")
+                .addPackagesToScan("app.saikat.DIManagement.Test_4")
                 .build());
 
         app.saikat.DIManagement.Test_4.A a = DIManager.get(app.saikat.DIManagement.Test_4.A.class);
@@ -125,7 +125,7 @@ public class DITester {
                         .autoBuild(false)
                         .checkDependency(false)
                         .build())
-                .addPackageToScan("app.saikat.DIManagement.Test_5")
+                .addPackagesToScan("app.saikat.DIManagement.Test_5")
                 .build();
 
         DIManager.initialize(config);
@@ -166,7 +166,7 @@ public class DITester {
                         .checkDependency(true)
                         .autoInvoke(false)
                         .build())
-                .addPackageToScan("app.saikat.DIManagement.Test_6")
+                .addPackagesToScan("app.saikat.DIManagement.Test_6")
                 .build();
 
         DIManager.initialize(config);

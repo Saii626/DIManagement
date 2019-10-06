@@ -1,8 +1,11 @@
 package app.saikat.DIManagement.Configurations;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import com.google.common.collect.Lists;
 
 /**
  * Not thread safe. Dont use from multiple threads
@@ -21,25 +24,21 @@ public class ScanConfig {
     }
 
     public void addConfig(ClassAnnotationConfig config) {
-        addToSet(classAnnotationConfigs, config);
+        addToSet(classAnnotationConfigs, Collections.singleton(config));
     }
 
     public void addConfig(MethodAnnotationConfig config) {
-        addToSet(methodAnnotationConfigs, config);
+        addToSet(methodAnnotationConfigs, Collections.singleton(config));
     }
 
-    private <T> void addToSet(Set<T> set, T t) {
-        // Update the object in set
+    private <T> void addToSet(Set<T> set, Collection<T> items) {
         synchronized (set) {
-            // if (set.contains(t)) {
-                // set.remove(t);
-                set.add(t);
-            // }
+                set.addAll(items);
         }
     }
 
-    public void addPackageToScan(String pkg) {
-        addToSet(packagesToScan, pkg);
+    public void addPackagesToScan(String... pkgs) {
+        addToSet(packagesToScan, Lists.newArrayList(pkgs));
     }
 
     public Set<ClassAnnotationConfig> getClassAnnotationConfig() {
@@ -84,9 +83,9 @@ public class ScanConfig {
             return this;
         }
 
-        public Builder addPackageToScan(String str) {
+        public Builder addPackagesToScan(String... str) {
             synchronized (packagesToScan) {
-                packagesToScan.add(str);
+                packagesToScan.addAll(Lists.newArrayList(str));
             }
             return this;
         }
