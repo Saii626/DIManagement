@@ -350,6 +350,10 @@ public class DIManager {
         return get(new DIBean(cls, qualifier));
     }
 
+    public static Class<? extends Annotation> getQualifierAnnotation(Class<?> cls) {
+        return Utils.getQualifierAnnotation(cls.getAnnotations(), QUALIFIERS);
+    }
+
     public static <T> T get(DIBean bean) throws ClassNotUnderDIException {
         try {
             return objectMap.get(bean);
