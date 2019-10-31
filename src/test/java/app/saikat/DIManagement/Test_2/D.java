@@ -4,14 +4,14 @@ import javax.inject.Inject;
 
 public class D {
 
-    private B b;
+	private B b;
 
-    @Inject
-    public D(B b) {
-        this.b = b;
-    }
+	@Inject
+	public D(B b) {
+		this.b = b;
+	}
 
-    public B getB() {
-        return b;
-    }
+	public B getB() {
+		return b;
+	}
 }

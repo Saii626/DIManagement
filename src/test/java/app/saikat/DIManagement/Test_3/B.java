@@ -4,18 +4,18 @@ import app.saikat.DIManagement.Provides;
 
 public class B {
 
-    private E e;
+	private E e;
 
-    public E getE() {
-        return e;
-    }
+	public E getE() {
+		return e;
+	}
 
-    @Provides
-    public E createE() {
-        if (e == null) {
-            e = new E();
-        }
-        return e;
-    }
+	@Provides
+	public E createE() {
+		if (e == null) {
+			e = new E();
+		}
+		return e;
+	}
 
 }

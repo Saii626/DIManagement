@@ -6,29 +6,29 @@ import app.saikat.DIManagement.Provides;
 
 public class E {
 
-    private D d;
-    private String str;
+	private D d;
+	private String str;
 
-    public E(@Q1 D d) {
-        this.d = d;
-    }
+	public E(@Q1 D d) {
+		this.d = d;
+	}
 
-    public D getD() {
-        return d;
-    }
+	public D getD() {
+		return d;
+	}
 
-    @Provides
-    @Q2
-    public F createF() {
-        return new F();
-    }
+	@Provides
+	@Q2
+	public F createF() {
+		return new F();
+	}
 
-    @PostConstruct
-    private void setStr() {
-        this.str = "Hello world";
-    }
+	@PostConstruct
+	private void setStr() {
+		this.str = "Hello world";
+	}
 
-    public String getStr() {
-        return str;
-    }
+	public String getStr() {
+		return str;
+	}
 } 

@@ -4,20 +4,20 @@ import javax.inject.Inject;
 
 public class F {
 
-    private D d;
-    private E e;
+	private D d;
+	private E e;
 
-    @Inject
-    public F(D d, E e) {
-        this.d = d;
-        this.e = e;
-    }
+	@Inject
+	public F(D d, E e) {
+		this.d = d;
+		this.e = e;
+	}
 
-    public D getD() {
-        return d;
-    }
+	public D getD() {
+		return d;
+	}
 
-    public E getE() {
-        return e;
-    }
+	public E getE() {
+		return e;
+	}
 }

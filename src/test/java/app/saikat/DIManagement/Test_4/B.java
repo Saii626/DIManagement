@@ -5,19 +5,19 @@ import app.saikat.DIManagement.Provides;
 @Q1
 public class B {
 
-    private C c;
+	private C c;
 
-    public B(C c) {
-        this.c = c;
-    }
+	public B(C c) {
+		this.c = c;
+	}
 
-    public C getC() {
-        return c;
-    }
+	public C getC() {
+		return c;
+	}
 
-    @Provides
-    @Q2
-    public D createD() {
-        return new D("Type: Q2");
-    }
+	@Provides
+	@Q2
+	public D createD() {
+		return new D("Type: Q2");
+	}
 }

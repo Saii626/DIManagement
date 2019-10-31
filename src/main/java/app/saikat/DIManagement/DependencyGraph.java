@@ -27,99 +27,99 @@ import app.saikat.DIManagement.Exceptions.NoValidConstructorFoundException;
 
 class DependencyGraph {
 
-    private final MutableGraph<DIBean> graph;
-    private final List<Class<? extends Annotation>> QUALIFIERS;
-    private final Set<DIBean> alreadyScanned;
+	private final MutableGraph<DIBean> graph;
+	private final List<Class<? extends Annotation>> QUALIFIERS;
+	private final Set<DIBean> alreadyScanned;
 
-    private Logger logger = LoggerFactory.getLogger(this.getClass());
+	private Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    public DependencyGraph(List<Class<? extends Annotation>> qualifiers) {
-        graph = GraphBuilder.directed()
-                .allowsSelfLoops(false)
-                .build();
-        alreadyScanned = new HashSet<>();
-        QUALIFIERS = qualifiers;
-    }
+	public DependencyGraph(List<Class<? extends Annotation>> qualifiers) {
+		graph = GraphBuilder.directed()
+				.allowsSelfLoops(false)
+				.build();
+		alreadyScanned = new HashSet<>();
+		QUALIFIERS = qualifiers;
+	}
 
-    public synchronized void addBeans(Collection<DIBean> beans) {
+	public synchronized void addBeans(Collection<DIBean> beans) {
 
-        Queue<DIBean> scanQueue = new ArrayDeque<>(beans);
+		Queue<DIBean> scanQueue = new ArrayDeque<>(beans);
 
-        while (!scanQueue.isEmpty()) {
-            DIBean target = scanQueue.poll();
+		while (!scanQueue.isEmpty()) {
+			DIBean target = scanQueue.poll();
 
-            if (alreadyScanned.contains(target)) {
-                continue;
-            }
+			if (alreadyScanned.contains(target)) {
+				continue;
+			}
 
-            logger.debug("Adding {} to dependencyGraph", target);
-            graph.addNode(target);
+			logger.debug("Adding {} to dependencyGraph", target);
+			graph.addNode(target);
 
-            if (target.resolveDependency()) {
-                List<DIBean> dependencies;
-                Collection<DIBean> allDeclaredBeans = Lists
-                        .newArrayList(Iterables.unmodifiableIterable(Iterables.concat(alreadyScanned, scanQueue)));
+			if (target.resolveDependency()) {
+				List<DIBean> dependencies;
+				Collection<DIBean> allDeclaredBeans = Lists
+						.newArrayList(Iterables.unmodifiableIterable(Iterables.concat(alreadyScanned, scanQueue)));
 
-                if (target.isMethod()) {
-                    Method method = target.getMethod();
-                    method.setAccessible(true);
+				if (target.isMethod()) {
+					Method method = target.getMethod();
+					method.setAccessible(true);
 
-                    List<DIBean> classDep = Utils.getParameterBeans(method.getParameterTypes(),
-                            method.getParameterAnnotations(), QUALIFIERS);
+					List<DIBean> classDep = Utils.getParameterBeans(method.getParameterTypes(),
+							method.getParameterAnnotations(), QUALIFIERS);
 
-                    dependencies = classDep.stream()
-                            .map(d -> Utils.getProviderBean(allDeclaredBeans, d))
-                            .collect(Collectors.toList());
+					dependencies = classDep.stream()
+							.map(d -> Utils.getProviderBean(allDeclaredBeans, d))
+							.collect(Collectors.toList());
 
-                    if (!Modifier.isStatic(method.getModifiers())) {
-                        Class<?> parent = method.getDeclaringClass();
-                        DIBean dep = new DIBean(parent,
-                                Utils.getQualifierAnnotation(parent.getAnnotations(), QUALIFIERS), true);
-                        logger.debug("Not static method. Adding declaring {} as dependency", dep);
+					if (!Modifier.isStatic(method.getModifiers())) {
+						Class<?> parent = method.getDeclaringClass();
+						DIBean dep = new DIBean(parent,
+								Utils.getQualifierAnnotation(parent.getAnnotations(), QUALIFIERS), true);
+						logger.debug("Not static method. Adding declaring {} as dependency", dep);
 
-                        checkAndAddPair(target, dep);
-                        scanQueue.add(dep);
-                    }
-                } else {
-                    Constructor<?> toUse = Utils.getAppropriateConstructor(target.getType()
-                            .getDeclaredConstructors());
-                    if (toUse == null) {
-                        throw new NoValidConstructorFoundException(target.getType());
-                    }
-                    toUse.setAccessible(true);
+						checkAndAddPair(target, dep);
+						scanQueue.add(dep);
+					}
+				} else {
+					Constructor<?> toUse = Utils.getAppropriateConstructor(target.getType()
+							.getDeclaredConstructors());
+					if (toUse == null) {
+						throw new NoValidConstructorFoundException(target.getType());
+					}
+					toUse.setAccessible(true);
 
-                    List<DIBean> classDep = Utils.getParameterBeans(toUse.getParameterTypes(),
-                            toUse.getParameterAnnotations(), QUALIFIERS);
+					List<DIBean> classDep = Utils.getParameterBeans(toUse.getParameterTypes(),
+							toUse.getParameterAnnotations(), QUALIFIERS);
 
-                    dependencies = classDep.stream()
-                            .map(d -> Utils.getProviderBean(allDeclaredBeans, d))
-                            .collect(Collectors.toList());
-                }
+					dependencies = classDep.stream()
+							.map(d -> Utils.getProviderBean(allDeclaredBeans, d))
+							.collect(Collectors.toList());
+				}
 
-                logger.debug("Dependencies for {} are: {}", target, Utils.getStringRepresentationOf(dependencies));
+				logger.debug("Dependencies for {} are: {}", target, Utils.getStringRepresentationOf(dependencies));
 
-                for (DIBean dep : dependencies) {
-                    checkAndAddPair(target, dep);
+				for (DIBean dep : dependencies) {
+					checkAndAddPair(target, dep);
 
-                    if (!allDeclaredBeans.contains(dep)) {
-                        scanQueue.add(dep);
-                    }
-                }
-            }
+					if (!allDeclaredBeans.contains(dep)) {
+						scanQueue.add(dep);
+					}
+				}
+			}
 
-            alreadyScanned.add(target);
-        }
-    }
+			alreadyScanned.add(target);
+		}
+	}
 
-    public synchronized ImmutableGraph<DIBean> getDependencyGraph() {
-        return ImmutableGraph.copyOf(graph);
-    }
+	public synchronized ImmutableGraph<DIBean> getDependencyGraph() {
+		return ImmutableGraph.copyOf(graph);
+	}
 
-    private void checkAndAddPair(DIBean target, DIBean dependent) {
-        graph.putEdge(target, dependent);
+	private void checkAndAddPair(DIBean target, DIBean dependent) {
+		graph.putEdge(target, dependent);
 
-        if (Graphs.hasCycle(graph)) {
-            throw new CircularDependencyException(target.getType(), dependent.getType());
-        }
-    }
+		if (Graphs.hasCycle(graph)) {
+			throw new CircularDependencyException(target.getType(), dependent.getType());
+		}
+	}
 }

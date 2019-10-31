@@ -4,18 +4,18 @@ import app.saikat.DIManagement.Provides;
 
 public class G {
 
-    private F f;
+	private F f;
 
-    public G(@Q2 F f) {
-        this.f = f;
-    }
+	public G(@Q2 F f) {
+		this.f = f;
+	}
 
-    public F getF() {
-        return f;
-    }
+	public F getF() {
+		return f;
+	}
 
-    @Provides
-    public D createD() {
-        return new D("Type: none");
-    }
+	@Provides
+	public D createD() {
+		return new D("Type: none");
+	}
 }
