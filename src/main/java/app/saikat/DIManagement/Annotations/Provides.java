@@ -1,4 +1,4 @@
-package app.saikat.DIManagement;
+package app.saikat.DIManagement.Annotations;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -8,5 +8,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.TYPE})
+@ScanAnnotation(autoBuild = false, checkDependency = true, autoInvoke = false)
 public @interface Provides {
 }

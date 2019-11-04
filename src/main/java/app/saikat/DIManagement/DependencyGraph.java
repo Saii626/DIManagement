@@ -28,12 +28,12 @@ import app.saikat.DIManagement.Exceptions.NoValidConstructorFoundException;
 class DependencyGraph {
 
 	private final MutableGraph<DIBean> graph;
-	private final List<Class<? extends Annotation>> QUALIFIERS;
+	private final Set<Class<? extends Annotation>> QUALIFIERS;
 	private final Set<DIBean> alreadyScanned;
 
 	private Logger logger = LoggerFactory.getLogger(this.getClass());
 
-	public DependencyGraph(List<Class<? extends Annotation>> qualifiers) {
+	public DependencyGraph(Set<Class<? extends Annotation>> qualifiers) {
 		graph = GraphBuilder.directed()
 				.allowsSelfLoops(false)
 				.build();
@@ -64,8 +64,8 @@ class DependencyGraph {
 					Method method = target.getMethod();
 					method.setAccessible(true);
 
-					List<DIBean> classDep = Utils.getParameterBeans(method.getParameterTypes(),
-							method.getParameterAnnotations(), QUALIFIERS);
+					List<DIBean> classDep = Utils.getParameterBeansWithoutProvider(method.getParameterTypes(),
+							method.getParameterAnnotations(), method.getGenericParameterTypes(), QUALIFIERS);
 
 					dependencies = classDep.stream()
 							.map(d -> Utils.getProviderBean(allDeclaredBeans, d))
@@ -88,8 +88,8 @@ class DependencyGraph {
 					}
 					toUse.setAccessible(true);
 
-					List<DIBean> classDep = Utils.getParameterBeans(toUse.getParameterTypes(),
-							toUse.getParameterAnnotations(), QUALIFIERS);
+					List<DIBean> classDep = Utils.getParameterBeansWithoutProvider(toUse.getParameterTypes(),
+							toUse.getParameterAnnotations(), toUse.getGenericParameterTypes(), QUALIFIERS);
 
 					dependencies = classDep.stream()
 							.map(d -> Utils.getProviderBean(allDeclaredBeans, d))

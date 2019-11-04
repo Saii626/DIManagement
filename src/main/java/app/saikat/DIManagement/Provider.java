@@ -2,6 +2,8 @@ package app.saikat.DIManagement;
 
 public interface Provider<T> {
 	
-	T getNewInstance();
+	T newInstance();
+
+	Class<T> getType();
 	
 }

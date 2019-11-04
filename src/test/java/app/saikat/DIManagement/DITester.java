@@ -5,6 +5,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNoException;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -18,6 +20,13 @@ import app.saikat.DIManagement.Exceptions.ClassNotUnderDIException;
 
 public class DITester {
 
+	// @Test
+	// public void tet_() throws NoSuchMethodException, SecurityException {
+	// 	// DIManager.initialize(ScanConfig.newBuilder().addPackagesToScan("app.saikat.DIManagement.Test_").build());
+	// 	Method m = A.class.getDeclaredMethod("test", Provider.class);
+	// 	ParameterizedType t = (ParameterizedType) m.getGenericParameterTypes()[0];
+	// 	System.out.println(t.getActualTypeArguments()[0].getClass());
+	// }
 	@Test
 	public void generateObjects_1() throws ClassNotUnderDIException {
 		DIManager.initialize(ScanConfig.newBuilder()

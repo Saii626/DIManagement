@@ -2,6 +2,8 @@ package app.saikat.DIManagement;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -11,7 +13,6 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
-import app.saikat.DIManagement.Configurations.AnnotationConfig;
 import app.saikat.PojoCollections.CommonObjects.Tuple;
 import io.github.classgraph.AnnotationInfo;
 
@@ -24,7 +25,7 @@ class Utils {
 	 * @return first matching annotation from QUALIFIERS if present, else null
 	 */
 	static Class<? extends Annotation> getQualifierAnnotation(Annotation[] annotations,
-			List<Class<? extends Annotation>> QUALIFIERS) {
+			Set<Class<? extends Annotation>> QUALIFIERS) {
 
 		for (Annotation annotation : annotations) {
 			if (QUALIFIERS.contains(annotation.annotationType())) {
@@ -65,19 +66,69 @@ class Utils {
 	 * Creates a list of DIBean from list of parameters and their corrosponding annotaions
 	 * @param parameters parameters to a function
 	 * @param annotations annotations of those parameters
+	 * @param parameterizedTypes generic parameters of those parameters
 	 * @param QUALIFIERS searchspace of annoations
 	 * @return list of DIBeans
 	 */
-	static List<DIBean> getParameterBeans(Class<?>[] parameters, Annotation[][] annotations,
-			List<Class<? extends Annotation>> QUALIFIERS) {
+	static List<DIBean> getParameterBeansWithoutProvider(Class<?>[] parameters, Annotation[][] annotations,
+			Type[] parameterizedTypes, Set<Class<? extends Annotation>> QUALIFIERS) {
 
 		List<DIBean> beans = new ArrayList<>();
 
 		for (int i = 0; i < parameters.length; i++) {
-			beans.add(new DIBean(parameters[i], Utils.getQualifierAnnotation(annotations[i], QUALIFIERS), true));
+			Class<?> param = parameters[i];
+
+			// If parameter is Provider only add what it provides
+			if (param.equals(Provider.class) && parameterizedTypes[i] != null) {
+				param = getProviderType(parameterizedTypes[i]);
+			}
+
+			beans.add(new DIBean(param, Utils.getQualifierAnnotation(annotations[i], QUALIFIERS), true));
 		}
 
 		return beans;
+	}
+
+	/**
+	 * Creates a list of DIBean from list of parameters and their corrosponding annotaions
+	 * @param parameters parameters to a function
+	 * @param annotations annotations of those parameters
+	 * @param parameterizedTypes generic parameters of those parameters
+	 * @param QUALIFIERS searchspace of annoations
+	 * @return list of DIBeans
+	 */
+	static List<Tuple<DIBean, Class<?>>> getParameterBeansWithProvider(Class<?>[] parameters,
+			Annotation[][] annotations, Type[] parameterizedTypes, Set<Class<? extends Annotation>> QUALIFIERS) {
+
+		List<Tuple<DIBean, Class<?>>> beans = new ArrayList<>();
+
+		for (int i = 0; i < parameters.length; i++) {
+			Class<?> param = parameters[i];
+
+			// If parameter is Provider only add what it provides
+			if (param.equals(Provider.class) && parameterizedTypes[i] != null) {
+				param = getProviderType(parameterizedTypes[i]);
+				beans.add(Tuple.of(
+						(new DIBean(parameters[i], Utils.getQualifierAnnotation(annotations[i], QUALIFIERS), true)),
+						param));
+			} else {
+
+				beans.add(Tuple.of(
+						(new DIBean(parameters[i], Utils.getQualifierAnnotation(annotations[i], QUALIFIERS), true)),
+						null));
+			}
+		}
+
+		return beans;
+	}
+
+	static Class<?> getProviderType(Type type) {
+		if (type instanceof ParameterizedType) {
+			ParameterizedType parameterizedType = (ParameterizedType) type;
+
+			return (Class<?>) parameterizedType.getActualTypeArguments()[0];
+		}
+		return null;
 	}
 
 	/**
@@ -127,12 +178,12 @@ class Utils {
 	 * @param annotaionsToScan list of AnnotationConfig to search
 	 * @return list of AnnotationConfig with its corrosponding AnnotationTnfo
 	 */
-	static <T extends AnnotationConfig> List<Tuple<T, AnnotationInfo>> getAnnotations(Function<String, AnnotationInfo> getAnnotation,
-			Set<T> annotaionsToScan) {
+	static List<AnnotationInfo> getAnnotations(
+			Function<String, AnnotationInfo> getAnnotation, Set<Class<? extends Annotation>> annotaionsToScan) {
 
 		return annotaionsToScan.stream()
-				.map(annotation -> Tuple.of(annotation, getAnnotation.apply(annotation.getAnnotation().getName())))
-				.filter(a -> a.second != null)
+				.map(annotation -> getAnnotation.apply(annotation.getName()))
+				.filter(a -> a != null)
 				.collect(Collectors.toList());
 	}
 }

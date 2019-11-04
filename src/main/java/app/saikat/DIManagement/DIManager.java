@@ -16,19 +16,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 import javax.inject.Qualifier;
 
+import com.google.common.collect.Sets;
 import com.google.common.graph.ImmutableGraph;
 
 import app.saikat.LogManagement.Logger;
 import app.saikat.LogManagement.LoggerFactory;
+import app.saikat.PojoCollections.CommonObjects.Either;
 import app.saikat.PojoCollections.CommonObjects.Tuple;
-import app.saikat.DIManagement.Configurations.AnnotationConfig;
-import app.saikat.DIManagement.Configurations.ClassAnnotationConfig;
-import app.saikat.DIManagement.Configurations.MethodAnnotationConfig;
-import app.saikat.DIManagement.Configurations.ScanConfig;
+import app.saikat.DIManagement.Annotations.ScanAnnotation;
+import app.saikat.DIManagement.Annotations.Provides;
 import app.saikat.DIManagement.Exceptions.ClassNotUnderDIException;
 import io.github.classgraph.AnnotationInfo;
 import io.github.classgraph.ClassGraph;
@@ -41,59 +40,51 @@ public class DIManager {
 	private static DependencyGraph dependencyGraph;
 	private static Logger logger = LoggerFactory.getLogger(DIManager.class);
 
-	private static final String PROVIDES = Provides.class.getName();
-	private static final String QUALIFIER = Qualifier.class.getName();
-	private static final String INJECT = Inject.class.getName();
-	private static List<String> QUALIFIERS_NAME;
-	private static List<Class<? extends Annotation>> QUALIFIERS;
-	private static ScanConfig config;
-	private static Map<Class<? extends Annotation>, List<Class<?>>> annotatedClasses;
-	private static Map<Class<? extends Annotation>, List<Method>> annotatedMethods;
+	private static List<String> QUALIFIER_ANNOT;
+	private static List<String> SCANNED_ANNOT;
+	private static Set<Class<? extends Annotation>> QUALIFIER_ANNOATTIONS;
+	private static Set<Class<? extends Annotation>> SCANNED_ANNOATTIONS;
+	private static Map<Class<? extends Annotation>, List<Either<Class<?>, Method>>> annotationsMap;
 
-	public static void initialize(ScanConfig scanConfig) {
+	public static void initialize(String... packagesToScan) {
 
 		logger.info("Initializing DIManager. Starting scans");
-		config = scanConfig;
 		try (ScanResult results = new ClassGraph().enableClassInfo()
 				.enableMethodInfo()
 				.ignoreMethodVisibility()
 				.ignoreClassVisibility()
 				.enableAnnotationInfo()
-				.whitelistPackages(config.getPackagesToScan()
-						.toArray(new String[] {}))
+				.whitelistPackages(packagesToScan)
 				.scan()) {
 
 			// Gather all @Qualifiers annotations
-			QUALIFIERS = scanForQualifiers(results);
-			QUALIFIERS_NAME = QUALIFIERS.stream()
-					.map(qualifier -> qualifier.getName())
-					.collect(Collectors.toList());
-			logger.info("All declared qualifiers are: {}", Arrays.toString(QUALIFIERS_NAME.toArray()));
+			QUALIFIER_ANNOATTIONS = scanAnnotationForAnnotation(Qualifier.class, results);
+			SCANNED_ANNOATTIONS = scanAnnotationForAnnotation(ScanAnnotation.class, results);
 
-			dependencyGraph = new DependencyGraph(QUALIFIERS);
+			QUALIFIER_ANNOT = QUALIFIER_ANNOATTIONS.stream()
+					.map(annot -> annot.getName())
+					.collect(Collectors.toList());
+			logger.info("All declared @Qualifier annotations are: {}", Arrays.toString(QUALIFIER_ANNOT.toArray()));
+
+			SCANNED_ANNOT = SCANNED_ANNOATTIONS.stream()
+					.map(annot -> annot.getName())
+					.collect(Collectors.toList());
+			logger.info("All declared @AnnotationConfig annotations are: {}", Arrays.toString(SCANNED_ANNOT.toArray()));
+
+			dependencyGraph = new DependencyGraph(QUALIFIER_ANNOATTIONS);
 
 			List<ClassInfo> allClasses = results.getAllClasses();
 
 			Set<DIBean> initBeans = Collections.synchronizedSet(new HashSet<>());
 			Set<DIBean> autoInvokeBeans = Collections.synchronizedSet(new HashSet<>());
 
-			logger.info("Scanning {} classes in package(s) {}", allClasses.size(), config.getPackagesToScan());
+			logger.info("Scanning {} classes in package(s) {}", allClasses.size(), packagesToScan);
 
 			scanAndAddProvidesAnnotation(allClasses);
 
 			scanAndAddInjectAnnotation(allClasses, initBeans);
 
-			config.addConfig(MethodAnnotationConfig.getBuilder()
-					.forAnnotation(PostConstruct.class)
-					.autoBuild(true)
-					.checkDependency(false)
-					.autoInvoke(true)
-					.build());
-
-			annotatedClasses = new ConcurrentHashMap<>();
-			annotatedMethods = new ConcurrentHashMap<>();
-
-			scanAndAddAnnotations(allClasses, initBeans, autoInvokeBeans);
+			scanAndAddAnnotations(allClasses, initBeans, autoInvokeBeans, SCANNED_ANNOATTIONS);
 
 			ImmutableGraph<DIBean> depGraph = dependencyGraph.getDependencyGraph();
 			Set<DIBean> allBeans = depGraph.nodes();
@@ -103,7 +94,7 @@ public class DIManager {
 				logger.debug("All scanned beans: {}", Utils.getStringRepresentationOf(allBeans));
 			}
 
-			objectMap = new ObjectMap(QUALIFIERS, depGraph);
+			objectMap = new ObjectMap(QUALIFIER_ANNOATTIONS, depGraph);
 			logger.info("Building autoBuild beans");
 			buildObjects(initBeans);
 			logger.info("Auto building of beans complete");
@@ -120,7 +111,7 @@ public class DIManager {
 			try {
 				objectMap.get(bean);
 			} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-					| InvocationTargetException | ClassNotUnderDIException e) {
+					| InvocationTargetException | ClassNotUnderDIException | InterruptedException e) {
 				logger.error("Error: {}", e);
 			}
 		}
@@ -130,9 +121,9 @@ public class DIManager {
 
 		autoInvokeBeans.forEach(bean -> {
 			try {
-				objectMap.buildDependency(bean);
+				objectMap.get(bean);
 			} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
-					| InvocationTargetException e) {
+					| InvocationTargetException | ClassNotUnderDIException | InterruptedException e) {
 				logger.error("Error: {}", e);
 			}
 
@@ -140,13 +131,16 @@ public class DIManager {
 	}
 
 	@SuppressWarnings("unchecked")
-	private static List<Class<? extends Annotation>> scanForQualifiers(ScanResult results) {
-		logger.debug("Scanning for @Qualifier annotations");
-		List<ClassInfo> allAnnotations = results.getAllAnnotations();
-		return Collections.unmodifiableList(allAnnotations.stream()
-				.filter(clsInfo -> clsInfo.hasAnnotation(QUALIFIER))
+	private static Set<Class<? extends Annotation>> scanAnnotationForAnnotation(Class<? extends Annotation> annotation,
+			ScanResult results) {
+		logger.debug("Scanning for @{} annotation", annotation.getSimpleName());
+
+		Set<ClassInfo> allAnnotations = Sets.newHashSet(results.getAllAnnotations());
+		final String annot = annotation.getName();
+		return Collections.unmodifiableSet(allAnnotations.stream()
+				.filter(clsInfo -> clsInfo.hasAnnotation(annot))
 				.map(cls -> (Class<? extends Annotation>) cls.loadClass())
-				.collect(Collectors.toList()));
+				.collect(Collectors.toSet()));
 
 	}
 
@@ -155,6 +149,7 @@ public class DIManager {
 
 		Set<DIBean> provideBeans = Collections.synchronizedSet(new HashSet<>());
 
+		final String PROVIDES = Provides.class.getName();
 		allClasses.parallelStream()
 				.forEach(cls -> {
 					logger.trace("Scanning {}", cls.getSimpleName());
@@ -164,7 +159,8 @@ public class DIManager {
 					if (info != null) {
 						Class<?> loadedClass = cls.loadClass();
 						DIBean bean = new DIBean(loadedClass,
-								Utils.getQualifierAnnotation(loadedClass.getAnnotations(), QUALIFIERS), true);
+								Utils.getQualifierAnnotation(loadedClass.getAnnotations(), QUALIFIER_ANNOATTIONS),
+								true);
 
 						safeAdd(provideBeans, Collections.singleton(bean));
 						logger.debug("Bean {} (@Provides annotated class) scanned and added", bean);
@@ -180,7 +176,8 @@ public class DIManager {
 								if (providesAnnotation != null) {
 									Method m = method.loadClassAndGetMethod();
 									DIBean bean = new DIBean(m,
-											Utils.getQualifierAnnotation(m.getAnnotations(), QUALIFIERS), true);
+											Utils.getQualifierAnnotation(m.getAnnotations(), QUALIFIER_ANNOATTIONS),
+											true);
 
 									safeAdd(provideBeans, Collections.singleton(bean));
 									logger.debug("Bean {} (@Provides annotated function) scanned and added", bean);
@@ -198,6 +195,8 @@ public class DIManager {
 
 		Set<DIBean> injectBeans = Collections.synchronizedSet(new HashSet<>());
 
+		final String INJECT = Inject.class.getName();
+
 		allClasses.parallelStream()
 				.forEach(cls -> {
 					logger.trace("Scanning {}", cls.getSimpleName());
@@ -213,7 +212,8 @@ public class DIManager {
 									Class<?> c = cls.loadClass();
 
 									DIBean bean = new DIBean(c,
-											Utils.getQualifierAnnotation(c.getAnnotations(), QUALIFIERS), true);
+											Utils.getQualifierAnnotation(c.getAnnotations(), QUALIFIER_ANNOATTIONS),
+											true);
 
 									safeAdd(initBeans, Collections.singleton(bean));
 									safeAdd(injectBeans, Collections.singleton(bean));
@@ -227,32 +227,43 @@ public class DIManager {
 	}
 
 	private static void scanAndAddAnnotations(List<ClassInfo> allClasses, Set<DIBean> initBeans,
-			Set<DIBean> autoInvokeBeans) {
+			Set<DIBean> autoInvokeBeans, Set<Class<? extends Annotation>> configAnnotations) {
 
-		if (logger.isDebugEnabled()) {
-			List<String> classAnnotations = config.getClassAnnotationConfig()
-					.stream()
-					.map(config -> config.getAnnotation()
-							.getName())
-					.collect(Collectors.toList());
-			List<String> methodAnnotations = config.getMethodAnnotationConfig()
-					.stream()
-					.map(config -> config.getAnnotation()
-							.getName())
-					.collect(Collectors.toList());
-			logger.debug("Scanning for {} classAnnotations and {} methodAnnotations",
-					Arrays.toString(classAnnotations.toArray()), Arrays.toString(methodAnnotations.toArray()));
-		}
+		// if (logger.isDebugEnabled()) {
+		// 	List<String> classAnnotations = config.getClassAnnotationConfig()
+		// 			.stream()
+		// 			.map(config -> config.getAnnotation()
+		// 					.getName())
+		// 			.collect(Collectors.toList());
+		// 	List<String> methodAnnotations = config.getMethodAnnotationConfig()
+		// 			.stream()
+		// 			.map(config -> config.getAnnotation()
+		// 					.getName())
+		// 			.collect(Collectors.toList());
+		// 	logger.debug("Scanning for {} classAnnotations and {} methodAnnotations",
+		// 			Arrays.toString(classAnnotations.toArray()), Arrays.toString(methodAnnotations.toArray()));
+		// }
+
+		Map<String, Tuple<Class<? extends Annotation>, ScanAnnotation>> annotationConfiguration = configAnnotations
+				.parallelStream()
+				.map(cls -> {
+					ScanAnnotation config = cls.getAnnotation(ScanAnnotation.class);
+					if (config == null)
+						return null;
+					return Tuple.of(cls, config);
+				})
+				.filter(tuple -> tuple != null)
+				.collect(Collectors.toMap(t -> t.first.getName(), t -> Tuple.of(t.first, t.second)));
 
 		Set<DIBean> beans = Collections.synchronizedSet(new HashSet<>());
 
-		BiConsumer<AnnotationConfig, DIBean> checkedAddInitBeans = (entry, bean) -> {
-			if (entry.isAutoBuild()) {
+		BiConsumer<ScanAnnotation, DIBean> checkedAddAutoBuildBeans = (entry, bean) -> {
+			if (entry.autoBuild()) {
 				safeAdd(initBeans, Collections.singleton(bean));
 			}
 		};
 
-		BiConsumer<MethodAnnotationConfig, DIBean> checkedAddAutoinvokeBeans = (entry, bean) -> {
+		BiConsumer<ScanAnnotation, DIBean> checkedAddAutoInvokeBeans = (entry, bean) -> {
 			if (entry.autoInvoke()) {
 				safeAdd(autoInvokeBeans, Collections.singleton(bean));
 			}
@@ -262,18 +273,22 @@ public class DIManager {
 				.forEach(cls -> {
 					logger.trace("Scanning {}", cls.getSimpleName());
 
-					List<Tuple<ClassAnnotationConfig, AnnotationInfo>> classAnnotationInfos = Utils
-							.getAnnotations(cls::getAnnotationInfo, config.getClassAnnotationConfig());
+					List<AnnotationInfo> classAnnotationInfos = Utils.getAnnotations(cls::getAnnotationInfo,
+							configAnnotations);
 
+					// cls.getAnnotationInfo();
 					if (classAnnotationInfos != null && classAnnotationInfos.size() > 0) {
 						Class<?> loadedClass = cls.loadClass();
 
-						classAnnotationInfos.forEach(entry -> {
-							DIBean bean = new DIBean(loadedClass, entry.first.getAnnotation(),
-									entry.first.checkDependency());
-							checkedAddInitBeans.accept(entry.first, bean);
+						classAnnotationInfos.forEach(annotInfo -> {
+							Tuple<Class<? extends Annotation>, ScanAnnotation> config = annotationConfiguration
+									.get(annotInfo.getClassInfo()
+											.getName());
+
+							DIBean bean = new DIBean(loadedClass, config.first, config.second.checkDependency());
+							checkedAddAutoBuildBeans.accept(config.second, bean);
 							safeAdd(beans, Collections.singleton(bean));
-							addToMap(annotatedClasses, entry.first.getAnnotation(), loadedClass);
+							addToMap(annotationsMap, config.first, Either.left(loadedClass));
 						});
 					}
 
@@ -282,31 +297,38 @@ public class DIManager {
 							.forEach(method -> {
 								logger.trace("Scanning method: {}.{}", method.getClassInfo(), method.getName());
 
-								List<Tuple<MethodAnnotationConfig, AnnotationInfo>> methodAnnotationInfos = Utils
-										.getAnnotations(method::getAnnotationInfo, config.getMethodAnnotationConfig());
+								// ClassRefTypeSignature clsRef = (ClassRefTypeSignature) method.getParameterInfo()[0]
+								// 		.getTypeSignature();
+								// logger.debug("method {}: {}", method.getName(), clsRef.getTypeArguments().get(0));
+								List<AnnotationInfo> methodAnnotationInfos = Utils
+										.getAnnotations(method::getAnnotationInfo, configAnnotations);
 
 								if (methodAnnotationInfos != null && methodAnnotationInfos.size() > 0) {
 									Class<?> c = cls.loadClass();
 									Method m = method.loadClassAndGetMethod();
 									m.setAccessible(true);
 
-									methodAnnotationInfos.forEach(entry -> {
+									methodAnnotationInfos.forEach(annotInfo -> {
+										Tuple<Class<? extends Annotation>, ScanAnnotation> config = annotationConfiguration
+												.get(annotInfo.getClassInfo()
+														.getName());
+
 										// If autobuild is enabled, only then check dependency of parent
-										DIBean bean = new DIBean(m, entry.first.getAnnotation(),
-												entry.first.checkDependency());
+										DIBean bean = new DIBean(m, config.first, config.second.checkDependency());
 										DIBean parent = new DIBean(c,
-												Utils.getQualifierAnnotation(c.getAnnotations(), QUALIFIERS),
-												entry.first.isAutoBuild());
-										checkedAddInitBeans.accept(entry.first, parent);
-										checkedAddAutoinvokeBeans.accept(entry.first, bean);
+												Utils.getQualifierAnnotation(c.getAnnotations(), QUALIFIER_ANNOATTIONS),
+												config.second.autoBuild());
+										checkedAddAutoBuildBeans.accept(config.second, parent);
+										checkedAddAutoInvokeBeans.accept(config.second, bean);
 										safeAdd(beans, Collections.singleton(parent));
 										safeAdd(beans, Collections.singleton(bean));
-										addToMap(annotatedMethods, entry.first.getAnnotation(), m);
+										addToMap(annotationsMap, config.first, Either.right(m));
 
 										// Need to add dependencies to initBeans. Else dependencies won't be instanciated
-										if (entry.first.autoInvoke() && entry.first.checkDependency()) {
-											Utils.getParameterBeans(m.getParameterTypes(), m.getParameterAnnotations(),
-													QUALIFIERS)
+										if (config.second.autoInvoke() && config.second.checkDependency()) {
+											Utils.getParameterBeansWithoutProvider(m.getParameterTypes(),
+													m.getParameterAnnotations(), m.getGenericParameterTypes(),
+													QUALIFIER_ANNOATTIONS)
 													.forEach(b -> safeAdd(initBeans, Collections.singleton(b)));
 										}
 									});
@@ -324,11 +346,11 @@ public class DIManager {
 		}
 	}
 
-	private static <T> void addToMap(Map<Class<? extends Annotation>, List<T>> map,
-			Class<? extends Annotation> annotation, T item) {
+	private static <T> void addToMap(Map<Class<? extends Annotation>, List<Either<Class<?>, Method>>> map,
+			Class<? extends Annotation> annotation, Either<Class<?>, Method> item) {
 
 		map.compute(annotation, (k, v) -> {
-			List<T> list;
+			List<Either<Class<?>, Method>> list;
 			if (v == null) {
 				list = Collections.synchronizedList(new ArrayList<>());
 			} else {
@@ -350,26 +372,33 @@ public class DIManager {
 		return get(new DIBean(cls, qualifier));
 	}
 
-	public static Class<? extends Annotation> getQualifierAnnotation(Class<?> cls) {
-		return Utils.getQualifierAnnotation(cls.getAnnotations(), QUALIFIERS);
+	public static <T> Provider<T> getProvider(Class<?> cls) throws InterruptedException, ClassNotUnderDIException {
+		return getProvider(cls, null);
 	}
 
-	public static <T> T get(DIBean bean) throws ClassNotUnderDIException {
+	public static <T> Provider<T> getProvider(Class<?> cls, Class<? extends Annotation> qualifier)
+			throws InterruptedException, ClassNotUnderDIException {
 		try {
-			return objectMap.get(bean);
+			return objectMap.getProvider(new DIBean(cls, qualifier));
 		} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
 				| InvocationTargetException e) {
-			logger.error("Error", e);
+			logger.error("Error: ", e);
 			return null;
 		}
 	}
 
-	public static List<Class<?>> getAnnotatedClasses(Class<? extends Annotation> annotation) {
-		return annotatedClasses.get(annotation);
+	public static Class<? extends Annotation> getQualifierAnnotation(Class<?> cls) {
+		return Utils.getQualifierAnnotation(cls.getAnnotations(), QUALIFIER_ANNOATTIONS);
 	}
 
-	public static List<Method> getAnnotatedMethods(Class<? extends Annotation> annotation) {
-		return annotatedMethods.get(annotation);
+	private static <T> T get(DIBean bean) throws ClassNotUnderDIException {
+		try {
+			return objectMap.get(bean);
+		} catch (InstantiationException | IllegalAccessException | IllegalArgumentException
+				| InvocationTargetException | InterruptedException e) {
+			logger.error("Error", e);
+			return null;
+		}
 	}
 
 	public static List<Class<?>> getAllClassesUnderDI() {
