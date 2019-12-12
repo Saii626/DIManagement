@@ -1,7 +1,10 @@
 package app.saikat.DIManagement.Test_3;
 
-import app.saikat.DIManagement.Provides;
+import javax.inject.Singleton;
 
+import app.saikat.Annotations.DIManagement.Provides;
+
+@Singleton
 public class B {
 
 	private E e;

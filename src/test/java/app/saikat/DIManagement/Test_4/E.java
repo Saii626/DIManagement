@@ -1,9 +1,11 @@
 package app.saikat.DIManagement.Test_4;
 
 import javax.annotation.PostConstruct;
+import javax.inject.Singleton;
 
-import app.saikat.DIManagement.Provides;
+import app.saikat.Annotations.DIManagement.Provides;
 
+@Singleton
 public class E {
 
 	private D d;

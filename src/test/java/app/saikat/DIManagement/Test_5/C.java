@@ -25,7 +25,6 @@ public class C {
 		return state;
 	}
 
-	@ClassAnnot_2
 	public void modifyState() {
 		state = "Wrong";
 	}

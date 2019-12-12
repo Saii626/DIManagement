@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'idea'
+    id 'java-library'
 }
 
 group 'app.saikat'
@@ -12,21 +12,51 @@ repositories {
     mavenCentral()
 }
 
-test {
-    testLogging.showStandardStreams =true
-
-    beforeTest { descriptor ->
-        logger.lifecycle("Running test: " + descriptor)
-    }
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
 }
 
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = 'javadoc'
+    from javadoc.destinationDir
+}
+
+artifacts {
+    archives sourcesJar
+    archives javadocJar
+}
+
+task copyToLib(type: Copy) {
+    into "$buildDir/libs/separate-jars"
+    from configurations.runtimeClasspath
+}
+
+task copyProj(type: Copy) {
+  from "$buildDir/libs/" + jar.archiveFileName.get()
+  into "$buildDir/libs/separate-jars"
+}
+
+task fatJar(type: Jar) {
+    classifier = 'fat'
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+    destinationDirectory = file("$buildDir/libs/fat")
+    with jar
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+build.finalizedBy(copyToLib)
+build.finalizedBy(fatJar)
+build.dependsOn(copyProj)
+
 dependencies {
-    implementation project(':LogManagement')
     implementation project(':PojoCollections')
-    compile group: 'javax.inject', name: 'javax.inject', version: '1'
+    implementation project(':Annotations')
 
     implementation group: 'com.google.guava', name: 'guava', version: '28.0-jre'
     implementation group: 'io.github.classgraph', name: 'classgraph', version: '4.8.43'
+    implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.12.1'
 
+    testImplementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.12.1'
     testImplementation group: 'junit', name: 'junit', version: '4.12'
 }

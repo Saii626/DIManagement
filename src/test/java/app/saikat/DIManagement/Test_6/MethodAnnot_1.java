@@ -5,7 +5,11 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+import app.saikat.Annotations.DIManagement.ScanAnnotation;
+import app.saikat.DIManagement.BeanManagers.SingletonBeanManager;
+
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
+@ScanAnnotation(autoManage = true, beanManagers = SingletonBeanManager.class)
 public @interface MethodAnnot_1 {
 }

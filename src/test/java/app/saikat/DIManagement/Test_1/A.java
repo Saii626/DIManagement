@@ -1,7 +1,9 @@
 package app.saikat.DIManagement.Test_1;
 
 import javax.inject.Inject;
+import javax.inject.Singleton;
 
+@Singleton
 public class A {
 
 	private B b;

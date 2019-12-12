@@ -1,7 +1,10 @@
 package app.saikat.DIManagement.Test_4;
 
-import app.saikat.DIManagement.Provides;
+import javax.inject.Singleton;
 
+import app.saikat.Annotations.DIManagement.Provides;
+
+@Singleton
 @Q1
 public class B {
 
