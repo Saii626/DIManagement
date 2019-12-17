@@ -16,10 +16,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
 import javax.inject.Provider;
-import javax.inject.Singleton;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -33,7 +30,6 @@ import org.apache.logging.log4j.Logger;
 
 import app.saikat.PojoCollections.CommonObjects.Either;
 import app.saikat.Annotations.DIManagement.NoQualifier;
-import app.saikat.Annotations.DIManagement.Provides;
 import app.saikat.DIManagement.Exceptions.CircularDependencyException;
 import app.saikat.DIManagement.Exceptions.NoProviderFoundForClassException;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
@@ -65,15 +61,14 @@ class DependencyGraph {
 		this.results.addAnnotationBean(managerBean);
 	}
 
-	@SuppressWarnings({"unchecked", "rawtypes"})
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public synchronized void generateGraph() {
 
 		logger.debug("Starting graph generation");
 
 		// Managed annotations
 		Set<Class<? extends Annotation>> managedAnnotations = results.getAnnotationsToScan().entrySet().parallelStream()
-				.filter(t -> t.getValue().autoManage()).map(t -> t.getKey())
-				.collect(Collectors.toSet());
+				.filter(t -> t.getValue().autoManage()).map(t -> t.getKey()).collect(Collectors.toSet());
 
 		logger.debug("Auto-managed annotations: {}", managedAnnotations);
 
@@ -88,12 +83,12 @@ class DependencyGraph {
 		Set<Class<?>> managedInterfaces = results.getInterfacesToScan().entrySet().parallelStream()
 				.filter(t -> t.getValue().autoManage()).map(t -> t.getKey()).collect(Collectors.toSet());
 
-			logger.debug("Auto-managed interfaces: {}", managedInterfaces);
+		logger.debug("Auto-managed interfaces: {}", managedInterfaces);
 
-		beans = (Collection) managedInterfaces.parallelStream().map(i -> results.getInterfacesMap().get(i))
-				.flatMap(set -> set.parallelStream()).collect(Collectors.toSet());
+		beans = (Collection) results.getInterfaceBeans().parallelStream()
+				.filter(bean -> hasSuperClass(bean.getProviderType(), managedInterfaces)).collect(Collectors.toSet());
 
-			logger.debug("Auto-managed interface beans are: {}", beans);
+		logger.debug("Auto-managed interface beans are: {}", beans);
 
 		addBeans(beans);
 
@@ -101,13 +96,13 @@ class DependencyGraph {
 		Set<Class<?>> managedSuperClasses = results.getSuperClassesToScan().entrySet().parallelStream()
 				.filter(t -> t.getValue().autoManage()).map(t -> t.getKey()).collect(Collectors.toSet());
 
-			logger.debug("Auto-managed superclasses: {}", managedSuperClasses);
+		logger.debug("Auto-managed superclasses: {}", managedSuperClasses);
+		logger.debug("subclass map: {}", results.getSubClassesMap());
 
-		beans = (Collection) managedSuperClasses.parallelStream().map(i -> results.getSubClassesMap().get(i))
-				.flatMap(set -> set.parallelStream()).collect(Collectors.toSet());
+		beans = (Collection) results.getSubclassBeans().parallelStream()
+				.filter(bean -> hasSuperClass(bean.getProviderType(), managedSuperClasses)).collect(Collectors.toSet());
 
-			logger.debug("Auto-managed subclass beans are: {}",
-					managedSuperClasses);
+		logger.debug("Auto-managed subclass beans are: {}", beans);
 		addBeans(beans);
 
 	}
@@ -156,8 +151,9 @@ class DependencyGraph {
 
 	private void checkAndAddPair(DIBean<?> target, DIBean<?> dependent) {
 		// Static methods have 1st dependent null
-		
-		if (dependent == null) return;
+
+		if (dependent == null)
+			return;
 		try {
 			graph.putEdge(target, dependent);
 
@@ -233,12 +229,14 @@ class DependencyGraph {
 		return dependencies;
 	}
 
-	private List<DIBeanImpl<?>> resolveDependencies(List<DIBeanImpl<?>> dependencies, Collection<DIBeanImpl<?>> currentScanBatch) {
+	private List<DIBeanImpl<?>> resolveDependencies(List<DIBeanImpl<?>> dependencies,
+			Collection<DIBeanImpl<?>> currentScanBatch) {
 		return dependencies.stream().map(toResolve -> {
 			logger.debug("Trying to resolve dependency {}", toResolve);
 
 			// Static methods will have 1st parameter as null
-			if (toResolve == null) return null;
+			if (toResolve == null)
+				return null;
 
 			DIBeanImpl<?> resolvedDep = alreadyScanned.parallelStream()
 					.filter(b -> toResolve.getProviderType().isAssignableFrom(b.getProviderType())
@@ -280,5 +278,9 @@ class DependencyGraph {
 
 		return annotations.parallelStream().filter(a -> annotationsToSearch.contains(a)).findAny().orElse(null);
 
+	}
+
+	private boolean hasSuperClass(Class<?> cls, Set<Class<?>> set) {
+		return set.parallelStream().filter(b -> b.isAssignableFrom(cls)).findAny().isPresent();
 	}
 }

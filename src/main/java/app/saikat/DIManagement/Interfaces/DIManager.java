@@ -74,7 +74,7 @@ public abstract class DIManager {
 	 * @return set of beans which impletents the required superclass
 	 */
 	public Set<DIBean<?>> getBeansOfSuperClass(Class<?> superClass) {
-		return results.getInterfacesMap().get(superClass);
+		return results.getSubClassesMap().get(superClass);
 	}
 
 	// Cache results of annotaions

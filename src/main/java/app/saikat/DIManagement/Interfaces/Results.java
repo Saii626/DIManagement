@@ -119,14 +119,14 @@ public class Results {
 		addToMap(annotationMap, qualifier != null ? qualifier : NoQualifier.class, item);
 	}
 
-	public void addInterfaceBean(DIBean<?> item) {
+	public void addInterfaceBean(DIBean<?> item, Class<?> inter) {
 		interfaceBeans.add(item);
-		addToMap(interfacesMap, item.getQualifier(), item);
+		addToMap(interfacesMap, inter, item);
 	}
 
-	public void addSubclassBean(DIBean<?> item) {
+	public void addSubclassBean(DIBean<?> item, Class<?> superCls) {
 		subclassBeans.add(item);
-		addToMap(superClassesMap, item.getQualifier(), item);
+		addToMap(superClassesMap, superCls, item);
 	}
 
 	private <K, V> void addToMap(Map<K, Set<V>> map, K key, V item) {

@@ -19,7 +19,6 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import app.saikat.Annotations.DIManagement.Generate;
 import app.saikat.Annotations.DIManagement.NoQualifier;
 import app.saikat.Annotations.DIManagement.Provides;
 import app.saikat.Annotations.DIManagement.ScanAnnotation;
@@ -262,7 +261,7 @@ public class ClasspathScanner {
 				logger.debug("Found class {} implementing {}", clsInfo.getSimpleName(), item.getSimpleName());
 				return bean;
 			}).forEach(bean -> {
-				scanResult.addInterfaceBean(bean);
+				scanResult.addInterfaceBean(bean, item);
 				helper.beanCreated(bean, scanResult);
 			});
 		});
@@ -292,7 +291,7 @@ public class ClasspathScanner {
 				logger.debug("Found class {} extending {}", clsInfo.getSimpleName(), item.getSimpleName());
 				return bean;
 			}).forEach(bean -> {
-				scanResult.addSubclassBean(bean);
+				scanResult.addSubclassBean(bean, item);
 				helper.beanCreated(bean, scanResult);
 			});
 		});
