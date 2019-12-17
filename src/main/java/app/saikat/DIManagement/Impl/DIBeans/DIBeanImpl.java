@@ -1,4 +1,4 @@
-package app.saikat.DIManagement.Impl;
+package app.saikat.DIManagement.Impl.DIBeans;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
@@ -19,22 +19,21 @@ import app.saikat.PojoCollections.CommonObjects.Either;
 public class DIBeanImpl<T> implements DIBean<T> {
 
 	// Annotations
-	private final Class<? extends Annotation> qualifier;
-	private final Set<Class<? extends Annotation>> nonQualifiers;
-	private boolean isSingleton;
+	protected final Class<? extends Annotation> qualifier;
+	protected final Set<Class<? extends Annotation>> nonQualifiers;
+	protected boolean isSingleton;
 
 	// The type of object stored in the bean
-	private final Either<Constructor<T>, Method> type;
-	private Provider<T> provider;
+	protected final Either<Constructor<T>, Method> type;
+	protected Provider<T> provider = null;
 
 	// List of dependencies of this bean. For methods, first bean is for parentBean.
-	private List<DIBeanImpl<?>> dependencies = Collections.emptyList();
+	protected List<DIBeanImpl<?>> dependencies = Collections.emptyList();
 
 	// List of all beanManagers. Called in order
-	private Set<Class<? extends DIBeanManager>> beanManagers = new HashSet<>();
+	protected Set<Class<? extends DIBeanManager>> beanManagers = new HashSet<>();
 
-	// Used when scanning
-	DIBeanImpl(Constructor<T> first, Class<? extends Annotation> second,
+	public DIBeanImpl(Constructor<T> first, Class<? extends Annotation> second,
 			Set<Class<? extends Annotation>> nonQualifierAnnotations, boolean isSingleton) {
 		this.type = Either.left(first);
 		this.nonQualifiers = nonQualifierAnnotations;
@@ -42,7 +41,7 @@ public class DIBeanImpl<T> implements DIBean<T> {
 		this.isSingleton = isSingleton;
 	}
 
-	DIBeanImpl(Method first, Class<? extends Annotation> second,
+	public DIBeanImpl(Method first, Class<? extends Annotation> second,
 			Set<Class<? extends Annotation>> nonQualifierAnnotations, boolean isSingleton) {
 		this.type = Either.right(first);
 		this.nonQualifiers = nonQualifierAnnotations;
@@ -79,6 +78,7 @@ public class DIBeanImpl<T> implements DIBean<T> {
 	 * Returns the underlying constructor or method
 	 * @return the underlying constructor or method
 	 */
+	@Override
 	public Either<Constructor<T>, Method> get() {
 		return type;
 	}

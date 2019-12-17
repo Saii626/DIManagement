@@ -4,19 +4,13 @@ import javax.inject.Inject;
 
 public class B {
 
-	private C c;
 	private D d;
 	private E e;
 
 	@Inject
-	public B(C c, D d, E e) {
-		this.c = c;
+	public B(D d, E e) {
 		this.d = d;
 		this.e = e;
-	}
-
-	public C getC() {
-		return this.c;
 	}
 
 	public D getD() {

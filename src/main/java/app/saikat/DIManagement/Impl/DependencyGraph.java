@@ -24,6 +24,7 @@ import javax.inject.Singleton;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.graph.GraphBuilder;
+import com.google.common.graph.Graphs;
 import com.google.common.graph.ImmutableGraph;
 import com.google.common.graph.MutableGraph;
 
@@ -35,7 +36,9 @@ import app.saikat.Annotations.DIManagement.NoQualifier;
 import app.saikat.Annotations.DIManagement.Provides;
 import app.saikat.DIManagement.Exceptions.CircularDependencyException;
 import app.saikat.DIManagement.Exceptions.NoProviderFoundForClassException;
-import app.saikat.DIManagement.Exceptions.NoValidConstructorFoundException;
+import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
+import app.saikat.DIManagement.Impl.DIBeans.DIManagerBean;
+import app.saikat.DIManagement.Impl.DIBeans.UnresolvedDIBeanImpl;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.Results;
 
@@ -51,41 +54,34 @@ class DependencyGraph {
 
 	private Logger logger = LogManager.getLogger(this.getClass());
 
-	public DependencyGraph(Results results, DIBeanManagerHelper helper) {
+	public DependencyGraph(Results results, DIBeanManagerHelper helper, DIManagerBean managerBean) {
 		graph = GraphBuilder.directed().allowsSelfLoops(false).build();
-		alreadyScanned = new HashSet<>();
-		this.helper = helper;
 
+		alreadyScanned = new HashSet<>();
+		alreadyScanned.add(managerBean);
+
+		this.helper = helper;
 		this.results = results;
+		this.results.addAnnotationBean(managerBean);
 	}
 
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	public synchronized void generateGraph() {
 
 		logger.debug("Starting graph generation");
-		// Base annotations
-		Set<Class<? extends Annotation>> topPriorityAnnotations = Collections
-				.synchronizedSet(Sets.newHashSet(Provides.class, Inject.class, Singleton.class, PostConstruct.class));
+
+		// Managed annotations
+		Set<Class<? extends Annotation>> managedAnnotations = results.getAnnotationsToScan().entrySet().parallelStream()
+				.filter(t -> t.getValue().autoManage()).map(t -> t.getKey())
+				.collect(Collectors.toSet());
+
+		logger.debug("Auto-managed annotations: {}", managedAnnotations);
 
 		Collection<DIBeanImpl<?>> beans = (Collection) results.getAnnotationBeans().parallelStream()
-				.filter(b -> getAnnotation(b.getNonQualifierAnnotations(), topPriorityAnnotations) != null)
+				.filter(b -> getAnnotation(b.getNonQualifierAnnotations(), managedAnnotations) != null)
 				.collect(Collectors.toSet());
 
-		logger.debug("All top priority beans are: {}", beans);
-		addBeans(beans);
-
-		// Other managed annotations
-		Set<Class<? extends Annotation>> otherManagedAnnotations = results.getAnnotationsToScan().entrySet().parallelStream()
-				.filter(t -> t.getValue().autoManage()).map(t -> t.getKey()).filter(c -> !topPriorityAnnotations.contains(c))
-				.collect(Collectors.toSet());
-
-		logger.debug("Other auto-managed annotations: {}", otherManagedAnnotations);
-
-		beans = (Collection) results.getAnnotationBeans().parallelStream()
-				.filter(b -> getAnnotation(b.getNonQualifierAnnotations(), otherManagedAnnotations) != null)
-				.collect(Collectors.toSet());
-
-		logger.debug("Rest of auto-managed annotatation beans are: {}", beans);
+		logger.debug("Auto-managed annotatation beans are: {}", beans);
 		addBeans(beans);
 
 		// Managed interfaces
@@ -159,8 +155,15 @@ class DependencyGraph {
 	}
 
 	private void checkAndAddPair(DIBean<?> target, DIBean<?> dependent) {
+		// Static methods have 1st dependent null
+		
+		if (dependent == null) return;
 		try {
 			graph.putEdge(target, dependent);
+
+			if (Graphs.hasCycle(graph)) {
+				throw new CircularDependencyException(target, dependent);
+			}
 			isModified = true;
 		} catch (IllegalArgumentException e) {
 			throw new CircularDependencyException(target, dependent);
@@ -193,7 +196,7 @@ class DependencyGraph {
 
 			if (!Modifier.isStatic(meth.getModifiers())) {
 				Set<Annotation> annotationsOnParent = Sets.newHashSet(meth.getDeclaringClass().getAnnotations());
-				DIBeanImpl<?> parentClass = getBean(meth.getDeclaringClass(), annotationsOnParent,
+				DIBeanImpl<?> parentClass = getUnresolvedBean(meth.getDeclaringClass(), annotationsOnParent,
 						results.getQualifierAnnotations());
 
 				logger.debug("Method {} is non static. Adding {} as unresolved dependency", meth, parentClass);
@@ -215,13 +218,13 @@ class DependencyGraph {
 					p = Class.forName(
 							((ParameterizedType) genericTypes.get(i)).getActualTypeArguments()[0].getTypeName());
 
-					logger.trace("Provider resolced to {}", p.getSimpleName());
+					logger.trace("Provider resolved to {}", p.getSimpleName());
 				} catch (ClassNotFoundException e) {
 					logger.error("Error: ", e);
 				}
 			}
 
-			DIBeanImpl<?> dep = getBean(p, Sets.newHashSet(paramsAnnotations.get(i)),
+			DIBeanImpl<?> dep = getUnresolvedBean(p, Sets.newHashSet(paramsAnnotations.get(i)),
 					results.getQualifierAnnotations());
 			logger.debug("Unresolved dependency {} added", dep);
 			dependencies.add(dep);
@@ -233,8 +236,12 @@ class DependencyGraph {
 	private List<DIBeanImpl<?>> resolveDependencies(List<DIBeanImpl<?>> dependencies, Collection<DIBeanImpl<?>> currentScanBatch) {
 		return dependencies.stream().map(toResolve -> {
 			logger.debug("Trying to resolve dependency {}", toResolve);
+
+			// Static methods will have 1st parameter as null
+			if (toResolve == null) return null;
+
 			DIBeanImpl<?> resolvedDep = alreadyScanned.parallelStream()
-					.filter(b -> b.getProviderType().equals(toResolve.getProviderType())
+					.filter(b -> toResolve.getProviderType().isAssignableFrom(b.getProviderType())
 							&& b.getQualifier().equals(toResolve.getQualifier()))
 					.findFirst().orElse(null);
 
@@ -256,7 +263,7 @@ class DependencyGraph {
 		}).collect(Collectors.toList());
 	}
 
-	private DIBeanImpl<?> getBean(Class<?> cls, Set<Annotation> annotations,
+	private DIBeanImpl<?> getUnresolvedBean(Class<?> cls, Set<Annotation> annotations,
 			Set<Class<? extends Annotation>> qualifierAnnotations) {
 
 		Set<Class<? extends Annotation>> annotationClasses = annotations.parallelStream().map(a -> a.annotationType())
@@ -264,24 +271,8 @@ class DependencyGraph {
 
 		Class<? extends Annotation> q = getAnnotation(annotationClasses, qualifierAnnotations);
 
-		// Since equals for DIBeanImpl depends on qualifier and either constructor or method, need to correctly
-		// select the constructor for proper resolution. Copied from ClasspathScanner
-		Constructor<?>[] constructors = cls.getDeclaredConstructors();
-		Constructor<?> toUse;
-
-		if (constructors.length == 1) {
-			toUse = constructors[0];
-		} else {
-			toUse = Sets.newHashSet(cls.getDeclaredConstructors()).parallelStream()
-					.filter(c -> c.isAnnotationPresent(Inject.class)).findAny().orElse(null);
-
-			if (toUse == null) {
-				throw new NoValidConstructorFoundException(cls);
-			}
-		}
-
-		// Other params don't matter. Will be replaced by resolved dependency later
-		return new DIBeanImpl<>(toUse, q != null ? q : NoQualifier.class, null, false);
+		// All that matters is the qualifier and what type of object this bean will create
+		return new UnresolvedDIBeanImpl<>(cls, q != null ? q : NoQualifier.class);
 	}
 
 	private Class<? extends Annotation> getAnnotation(Collection<Class<? extends Annotation>> annotations,

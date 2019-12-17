@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.Results;

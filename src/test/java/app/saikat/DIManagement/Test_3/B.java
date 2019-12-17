@@ -7,18 +7,8 @@ import app.saikat.Annotations.DIManagement.Provides;
 @Singleton
 public class B {
 
-	private E e;
-
-	public E getE() {
-		return e;
-	}
-
-	@Provides
+	@Provides (singleton = false)
 	public E createE() {
-		if (e == null) {
-			e = new E();
-		}
-		return e;
+		return new E();
 	}
-
 }

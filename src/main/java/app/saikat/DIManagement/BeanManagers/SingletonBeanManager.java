@@ -3,7 +3,7 @@ package app.saikat.DIManagement.BeanManagers;
 import java.lang.ref.WeakReference;
 import java.util.Set;
 
-import app.saikat.DIManagement.Impl.DIBeanImpl;
+import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.Results;

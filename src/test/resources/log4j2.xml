@@ -24,8 +24,5 @@
         <Root level="all">
             <AppenderRef ref="console"/>
         </Root>
-        <logger name="statLogger" level="all">
-            <AppenderRef ref="statfile"/>
-        </logger>
     </Loggers>
 </Configuration>

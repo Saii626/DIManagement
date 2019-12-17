@@ -20,6 +20,8 @@ import com.google.common.graph.Traverser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
+import app.saikat.DIManagement.Impl.DIBeans.DIManagerBean;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.Results;
 import app.saikat.PojoCollections.CommonObjects.Either;
@@ -41,9 +43,11 @@ class ObjectFactory {
 
 	private final Logger logger = LogManager.getLogger(ObjectFactory.class);
 
-	public ObjectFactory(ImmutableGraph<DIBean<?>> dependencyGraph, DIBeanManagerHelper helper, Results results) {
+	public ObjectFactory(ImmutableGraph<DIBean<?>> dependencyGraph, DIBeanManagerHelper helper, Results results, DIManagerBean bean) {
 		this.dependencyGraph = dependencyGraph;
 		this.alreadyProvidedBeans = new HashSet<>();
+		this.alreadyProvidedBeans.add(bean);
+		
 		this.helper = helper;
 		this.results = results;
 	}
@@ -150,7 +154,8 @@ class ProviderImpl<T> implements Provider<T> {
 		int shift;
 		if (bean.get().containsRight()) {
 			shift = 1;
-			providers[0] = dependencies.get(0).getProvider();
+			DIBeanImpl<?> parent = dependencies.get(0);
+			providers[0] = parent != null ? parent.getProvider() : null;
 			provider[0] = false;
 		} else {
 			shift = 0;
@@ -227,7 +232,9 @@ class ProviderImpl<T> implements Provider<T> {
 			ret = constructor.newInstance(parameters);
 		} else {
 			Method method = underlyingExecutable.getRight().get();
-			ret = (T) method.invoke(dependencies.get(0).getProvider().get(), parameters);
+			DIBeanImpl<?> parent = dependencies.get(0);
+			Object o = parent != null ? parent.getProvider().get() : null;
+			ret = (T) method.invoke(o, parameters);
 		}
 
 		logger.debug("Created object: {}", ret);

@@ -18,28 +18,15 @@ import app.saikat.PojoCollections.CommonObjects.Tuple;
 
 public abstract class DIManager {
 
-	private static DIManager INSTANCE;
+	// private static DIManager INSTANCE;
 	protected static final Logger logger = LogManager.getLogger(DIManager.class);
 
 	/**
-	 * Gets the current instance of DIManager
+	 * Returns a new current instance of DIManager
 	 * @return current instance of DIManager
 	 */
-	public static DIManager getInstance() {
-		return INSTANCE;
-	}
-
-	/**
-	 * Creates a new instance of DIManager and returns the instance
-	 * @return new instance of DIManager
-	 */
 	public static DIManager newInstance() {
-		INSTANCE = new DIManagerImpl();
-		return INSTANCE;
-	}
-
-	static {
-		newInstance();
+		return new DIManagerImpl();
 	}
 
 	protected Results results;
@@ -175,4 +162,34 @@ public abstract class DIManager {
 	 * @return an immutable view of object map (map of DIBean to set of objects created by provider of the bean)
 	 */
 	public abstract Map<DIBean<?>, Set<WeakReference<?>>> getImmutableObjectMap();
+
+
+	/**
+	 * Special case when there is only 1 instance of type
+	 * @param <T> class type
+	 * @param cls class whose bean is required
+	 * @return returns the unique bean associated with this class
+	 * @throws RuntimeException if no or multiple beans are found of this class type
+	 */
+	public <T> DIBean<T> getBeanOfType(Class<T> cls) {
+		return getBeanOfType(cls, NoQualifier.class);
+	}
+
+	/**
+	 * Special case when there is only 1 instance of type
+	 * @param <T> class type
+	 * @param cls class whose bean is required
+	 * @param qualifier qualifier
+	 * @return returns the unique bean associated with this class
+	 * @throws RuntimeException if no or multiple beans are found of this class type
+	 */
+	public <T> DIBean<T> getBeanOfType(Class<T> cls, Class<? extends Annotation> qualifier) {
+		Set<DIBean<T>> beans = getBeansOfType(cls, qualifier);
+
+		if (beans.size() == 1) {
+			return beans.iterator().next();
+		} else {
+			throw new RuntimeException("No unique bean for " + cls.getSimpleName() + " found");
+		}
+	}
 }

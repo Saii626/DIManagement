@@ -1,9 +1,13 @@
 package app.saikat.DIManagement.Interfaces;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.Set;
 
 import javax.inject.Provider;
+
+import app.saikat.PojoCollections.CommonObjects.Either;
 
 public interface DIBean<T> {
 
@@ -39,6 +43,13 @@ public interface DIBean<T> {
 	 * @return runtime class information of the bean
 	 */
 	Class<T> getProviderType();
+
+
+	/**
+	 * Gets underlying constructor or method
+	 * @return the underlying constructor or method
+	 */
+	Either<Constructor<T>, Method> get();
 
 	/**
 	 * Get bean managers registered for this bean
