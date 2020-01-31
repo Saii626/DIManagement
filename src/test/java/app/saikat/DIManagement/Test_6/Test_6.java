@@ -23,7 +23,7 @@ public class Test_6 {
 	public void generateObjects_6() throws NoSuchMethodException, SecurityException {
 		DIManager manager = DIManager.newInstance();
 
-		manager.initialize("app.saikat.DIManagement.Test_6", "app.saikat.DIManagement.Annotations");
+		manager.initialize("app.saikat.DIManagement.Test_6", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		A a = manager.getBeansOfType(A.class).iterator().next().getProvider().get();
 		B b = manager.getBeansOfType(B.class).iterator().next().getProvider().get();

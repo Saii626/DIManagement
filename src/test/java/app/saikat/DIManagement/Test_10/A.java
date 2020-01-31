@@ -24,7 +24,7 @@ public class A {
 	}
 
 	@PostConstruct
-	public void postConstruct(DIManager manager) {
+	public void postConstruct() {
 		aInstance = manager.getBeanOfType(A.class).getProvider().get();
 	}
 	

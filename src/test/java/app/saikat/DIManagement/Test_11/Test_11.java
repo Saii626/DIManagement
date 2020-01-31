@@ -20,7 +20,7 @@ public class Test_11 {
 	public void test() {
 
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_11", "app.saikat.Annotations.DIManagement");
+		manager.initialize("app.saikat.DIManagement.Test_11", "app.saikat.Annotations.DIManagement", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		Provider<A> aProvider = manager.getBeanOfType(A.class).getProvider();
 		Provider<B> bProvider = manager.getBeanOfType(B.class).getProvider();
@@ -42,8 +42,8 @@ public class Test_11 {
 		Set<E> setOfE = d.geteInstances();
 		Set<G> setOfG = setOfE.parallelStream().map(e -> e.getG()).collect(Collectors.toSet());
 
-		Set<Object> expectedSetOfE = manager.getImmutableObjectMap().get(manager.getBeanOfType(E.class)).parallelStream().map(w -> w.get()).filter(e -> e != null).collect(Collectors.toSet());
-		Set<Object> expectedSetOfG = manager.getImmutableObjectMap().get(manager.getBeanOfType(G.class)).parallelStream().map(w -> w.get()).filter(e -> e != null).collect(Collectors.toSet());
+		Set<Object> expectedSetOfE = manager.getObjectMap().get(manager.getBeanOfType(E.class)).parallelStream().map(w -> w.get()).filter(e -> e != null).collect(Collectors.toSet());
+		Set<Object> expectedSetOfG = manager.getObjectMap().get(manager.getBeanOfType(G.class)).parallelStream().map(w -> w.get()).filter(e -> e != null).collect(Collectors.toSet());
 
 		assertTrue("set of e", setOfE.equals(expectedSetOfE));
 		assertTrue("set of g", setOfG.equals(expectedSetOfG));

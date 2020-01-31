@@ -3,7 +3,7 @@ package app.saikat.DIManagement.Interfaces;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
-import java.util.Set;
+import java.util.List;
 
 import javax.inject.Provider;
 
@@ -18,10 +18,10 @@ public interface DIBean<T> {
 	Class<? extends Annotation> getQualifier();
 
 	/**
-	 * Set of non qualifier annotations of the bean
-	 * @return Set of non qualifier annotations if present, empty otherwise
+	 * Non qualifier annotation of the bean
+	 * @return Non qualifier annotation if present, empty otherwise
 	 */
-	Set<Class<? extends Annotation>> getNonQualifierAnnotations();
+	Class<? extends Annotation> getNonQualifierAnnotation();
 
 	/**
 	 * Returns a provider to create new instance or invoke a function. There is exactly one
@@ -52,8 +52,28 @@ public interface DIBean<T> {
 	Either<Constructor<T>, Method> get();
 
 	/**
-	 * Get bean managers registered for this bean
-	 * @return all beanManagers for this bean
+	 * Gets the list of generic type of the bean if present. Else returns empty list
+	 * @return generic types of the bean if present, else empty list
 	 */
-	Set<Class<? extends DIBeanManager>> getBeanManagers();
+	List<String> getGenericParameters();
+
+	/**
+	 * Get bean manager for this bean
+	 * @return beanManager for this bean
+	 */
+	DIBeanManager getBeanManager();
+
+
+	/**
+	 * Returns the type of bean
+	 * @return type of bean
+	 */
+	DIBeanType getBeanType();
+
+
+	/**
+	 * Gets the dependency list of this bean
+	 * @return dependencies of the bean
+	 */
+	List<DIBean<?>> getDependencies();
 }

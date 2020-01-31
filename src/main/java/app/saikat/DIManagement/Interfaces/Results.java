@@ -28,6 +28,7 @@ public class Results {
 	private Set<DIBean<?>> annotationBeans = Collections.synchronizedSet(new HashSet<>());
 	private Set<DIBean<?>> interfaceBeans = Collections.synchronizedSet(new HashSet<>());
 	private Set<DIBean<?>> subclassBeans = Collections.synchronizedSet(new HashSet<>());
+	private Set<DIBean<?>> generatedBeans = Collections.synchronizedSet(new HashSet<>());
 
 	private boolean isImmutable = false;
 
@@ -71,6 +72,10 @@ public class Results {
 		return subclassBeans;
 	}
 
+	public Set<DIBean<?>> getGeneratedBeans() {
+		return generatedBeans;
+	}
+	
 	public boolean isImmutable() {
 		return isImmutable;
 	}
@@ -127,6 +132,10 @@ public class Results {
 	public void addSubclassBean(DIBean<?> item, Class<?> superCls) {
 		subclassBeans.add(item);
 		addToMap(superClassesMap, superCls, item);
+	}
+
+	public void addGeneratedBean(DIBean<?> item) {
+		generatedBeans.add(item);
 	}
 
 	private <K, V> void addToMap(Map<K, Set<V>> map, K key, V item) {

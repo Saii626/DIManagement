@@ -4,83 +4,86 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import javax.inject.Provider;
 
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
+import app.saikat.DIManagement.Interfaces.DIBeanType;
 import app.saikat.PojoCollections.CommonObjects.Either;
 
 public class DIBeanImpl<T> implements DIBean<T> {
 
 	// Annotations
 	protected final Class<? extends Annotation> qualifier;
-	protected final Set<Class<? extends Annotation>> nonQualifiers;
+	protected final Class<? extends Annotation> nonQualifier;
 	protected boolean isSingleton;
 
-	// The type of object stored in the bean
+	// The information stored in the bean
 	protected final Either<Constructor<T>, Method> type;
-	protected Provider<T> provider = null;
+	protected final List<String> genericParameters;
+	protected final DIBeanType beanType;
+	protected final List<DIBean<?>> dependencies;
 
-	// List of dependencies of this bean. For methods, first bean is for parentBean.
-	protected List<DIBeanImpl<?>> dependencies = Collections.emptyList();
+	// Other objects required for functioning of the bean
+	protected DIBean<Provider<T>> providerBean = null;
+	protected DIBeanManager beanManager = null;
 
-	// List of all beanManagers. Called in order
-	protected Set<Class<? extends DIBeanManager>> beanManagers = new HashSet<>();
-
-	public DIBeanImpl(Constructor<T> first, Class<? extends Annotation> second,
-			Set<Class<? extends Annotation>> nonQualifierAnnotations, boolean isSingleton) {
-		this.type = Either.left(first);
-		this.nonQualifiers = nonQualifierAnnotations;
+	protected DIBeanImpl(Either<Constructor<T>, Method> underlyingVal, Class<? extends Annotation> second,
+			Class<? extends Annotation> nonQualifierAnnotations, boolean isSingleton,
+			DIBeanType type) {
+		this.type = underlyingVal;
+		this.nonQualifier = nonQualifierAnnotations;
 		this.qualifier = second;
 		this.isSingleton = isSingleton;
+		this.beanType = type;
+		this.genericParameters = new ArrayList<>();
+		this.dependencies = new ArrayList<>();
+	}
+
+	public DIBeanImpl(Constructor<T> first, Class<? extends Annotation> second,
+			Class<? extends Annotation> nonQualifierAnnotations, boolean isSingleton, DIBeanType type) {
+		this(Either.left(first), second, nonQualifierAnnotations, isSingleton, type);
 	}
 
 	public DIBeanImpl(Method first, Class<? extends Annotation> second,
-			Set<Class<? extends Annotation>> nonQualifierAnnotations, boolean isSingleton) {
-		this.type = Either.right(first);
-		this.nonQualifiers = nonQualifierAnnotations;
-		this.qualifier = second;
-		this.isSingleton = isSingleton;
+			Class<? extends Annotation> nonQualifierAnnotations, boolean isSingleton, DIBeanType type) {
+		this(Either.right(first), second, nonQualifierAnnotations, isSingleton, type);
+	}
+
+	public DIBeanImpl(DIBean<T> bean) {
+		this(bean.get(), bean.getQualifier(), bean.getNonQualifierAnnotation(),
+				bean.isSingleton(), bean.getBeanType());
+
+		this.beanManager = bean.getBeanManager();
+		this.providerBean = ((DIBeanImpl<T>)bean).getProviderBean();
+		this.dependencies.addAll(bean.getDependencies());
 	}
 
 	/**
 	 * Sets the provider of this bean
 	 * @param provider of this bean
 	 */
-	public void setProvider(Provider<T> provider) {
-		this.provider = provider;
+	public void setProviderBean(DIBean<Provider<T>> provider) {
+		this.providerBean = provider;
+	}
+
+	/**
+	 * Gets the providerBean of this bean
+	 * @return provider bean of this bean
+	 */
+	public DIBean<Provider<T>> getProviderBean() {
+		return this.providerBean;
 	}
 
 	/**
 	 * Sets the dependencies of this bean in order
 	 * @return dependencies of this bean
 	 */
-	public List<DIBeanImpl<?>> getDependencies() {
+	public List<DIBean<?>> getDependencies() {
 		return dependencies;
-	}
-
-	/**
-	 * Returns the dependencies of this bean
-	 * @param dependencies dependencies of this bean
-	 */
-	// @SuppressWarnings({"rawtypes", "unchecked"})
-	public void setDependencies(List<DIBeanImpl<?>> dependencies) {
-		this.dependencies = Collections.unmodifiableList(dependencies);
-	}
-
-	/**
-	 * Returns the underlying constructor or method
-	 * @return the underlying constructor or method
-	 */
-	@Override
-	public Either<Constructor<T>, Method> get() {
-		return type;
 	}
 
 	/**
@@ -92,11 +95,21 @@ public class DIBeanImpl<T> implements DIBean<T> {
 	}
 
 	/**
-	 * Adds managers for this bean
-	 * @param managers managers for this bean
+	 * Sets this beans bean manager
+	 * @param beanManager the beanManager to set
 	 */
-	public void addManagers(Collection<Class<? extends DIBeanManager>> managers) {
-		beanManagers.addAll(managers);
+	public void setBeanManager(DIBeanManager beanManager) {
+		this.beanManager = beanManager;
+	}
+
+	@Override
+	public Either<Constructor<T>, Method> get() {
+		return type;
+	}
+
+	@Override
+	public List<String> getGenericParameters() {
+		return genericParameters;
 	}
 
 	@Override
@@ -105,23 +118,19 @@ public class DIBeanImpl<T> implements DIBean<T> {
 	}
 
 	@Override
-	public Set<Class<? extends Annotation>> getNonQualifierAnnotations() {
-		return nonQualifiers;
+	public Class<? extends Annotation> getNonQualifierAnnotation() {
+		return nonQualifier;
 	}
 
 	@Override
 	public Provider<T> getProvider() {
-		return provider;
+		return providerBean.getProvider().get();
 	}
+
 
 	@Override
 	public boolean isSingleton() {
 		return isSingleton;
-	}
-	
-	@Override
-	public Set<Class<? extends DIBeanManager>> getBeanManagers() {
-		return beanManagers;
 	}
 
 	@Override
@@ -130,33 +139,78 @@ public class DIBeanImpl<T> implements DIBean<T> {
 		return type.apply(c -> c.getDeclaringClass(), m -> (Class<T>) m.getReturnType());
 	}
 
-	// NonQualifier annotations dont take part in this
 	@Override
-	public int hashCode() {
-		return (qualifier != null ? qualifier.hashCode() : 0) * 31 + type.apply(c -> c.hashCode(), m -> m.hashCode());
+	public DIBeanManager getBeanManager() {
+		return this.beanManager;
+	}
+
+	@Override
+	public DIBeanType getBeanType() {
+		return this.beanType;
 	}
 
 	// NonQualifier annotations dont take part in this
 	@Override
-	public boolean equals(Object obj) {
-		if (obj == null || !(obj instanceof DIBeanImpl)) {
-			return false;
-		} else {
-			DIBeanImpl<?> t = (DIBeanImpl<?>) obj;
+	public int hashCode() {
+		return type.apply(Constructor::hashCode, Method::hashCode) + 31 * (qualifier != null ? qualifier.hashCode() : 0)
+				+ 31 ^ 2 * (genericParameters != null ? genericParameters.hashCode() : 0);
+	}
 
-			return (qualifier != null ? (t.getQualifier() != null && qualifier.equals(t.getQualifier()))
-					: t.getQualifier() == null)
-					&& type.apply(c -> t.type.containsLeft() ? t.type.getLeft().get().equals(c) : false,
-							m -> t.type.containsRight() ? t.type.getRight().get().equals(m) : false);
+	@Override
+	public boolean equals(Object obj) {
+		if (obj instanceof DIBeanImpl) {
+			DIBeanImpl<?> t = (DIBeanImpl<?>) obj;
+			Class<? extends Annotation> t_qualifier = t.getQualifier();
+			Either<?, ?> t_type = t.get();
+			List<String> t_genericParam = t.getGenericParameters();
+
+			return (qualifier == null ? t_qualifier == null : qualifier.equals(t_qualifier)) && type.equals(t_type)
+					&& genericParameters.equals(t_genericParam);
 		}
+
+		return false;
 	}
 
 	@Override
 	public String toString() {
-		String qString = qualifier != null ? "(@" + qualifier.getSimpleName() + ") " : "";
-		String tString = type.apply(c -> c.getName(),
-				m -> m.getDeclaringClass().getSimpleName() + (Modifier.isStatic(m.getModifiers()) ? "." : "::") + m.getName());
-		return "<" + qString + tString + ">";
+		String qString = getQualifierString();
+		String nqString = getNonQualifierString();
+		String gString = getGenericParamString();
+		String tString = getTypeString();
+
+		return "[" + qString + ":" + nqString + ":" + tString + gString + "]";
 	}
 
+	/**
+	 * Only used by toString method to generate string representation of the bean
+	 * @return qualifier representation of the string
+	 */
+	protected String getQualifierString() {
+		return qualifier != null ? "@" + qualifier.getSimpleName() : "null";
+	}
+
+	/**
+	 * Only used by toString method to generate string representation of the bean
+	 * @return non qualifier representation of the string
+	 */
+	protected String getNonQualifierString() {
+		return nonQualifier != null ? "@" + nonQualifier.getSimpleName() : "null";
+	}
+
+	/**
+	 * Only used by toString method to generate string representation of the bean
+	 * @return type representation of the string
+	 */
+	protected String getTypeString() {
+		return type.apply(c -> c.getDeclaringClass().getSimpleName(), m -> m.getDeclaringClass().getSimpleName()
+				+ (Modifier.isStatic(m.getModifiers()) ? "." : "::") + m.getName());
+	}
+
+	/**
+	 * Only used by toString method to generate string representation of the bean
+	 * @return generic parameter representation of the string
+	 */
+	protected String getGenericParamString() {
+		return genericParameters != null && genericParameters.size() > 0 ? "<" + genericParameters.toString() + ">" : "";
+	}
 }

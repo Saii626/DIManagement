@@ -15,7 +15,7 @@ public class Test_10 {
 	public void test() {
 		DIManager manager = DIManager.newInstance();
 
-		manager.initialize("app.saikat.DIManagement.Test_10", "app.saikat.Annotations.DIManagement");
+		manager.initialize("app.saikat.DIManagement.Test_10", "app.saikat.Annotations.DIManagement", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		A a = manager.getBeanOfType(A.class).getProvider().get();
 		B b = manager.getBeanOfType(B.class).getProvider().get();

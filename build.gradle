@@ -49,6 +49,12 @@ build.finalizedBy(copyToLib)
 build.finalizedBy(fatJar)
 build.dependsOn(copyProj)
 
+test {
+    useJUnit()
+    // failFast = true
+    // maxParallelForks = 5
+}
+
 dependencies {
     implementation project(':PojoCollections')
     implementation project(':Annotations')

@@ -19,7 +19,7 @@ import app.saikat.PojoCollections.CommonObjects.Tuple;
 public abstract class DIManager {
 
 	// private static DIManager INSTANCE;
-	protected static final Logger logger = LogManager.getLogger(DIManager.class);
+	protected final Logger logger = LogManager.getLogger(this.getClass());
 
 	/**
 	 * Returns a new current instance of DIManager
@@ -29,7 +29,8 @@ public abstract class DIManager {
 		return new DIManagerImpl();
 	}
 
-	protected Results results;
+	protected final Results results = new Results();
+	protected final Map<DIBean<?>, Set<WeakReference<?>>> objectMap = new ConcurrentHashMap<>();
 
 	/**
 	 * Performs classpath scanning, generation of dependency graph and creation of
@@ -91,7 +92,7 @@ public abstract class DIManager {
 			synchronized (cachedAnnotationMap) {
 				if (!cachedAnnotationMap.containsKey(annotation)) {
 					Set<DIBean<?>> beans = results.getAnnotationBeans().parallelStream()
-							.filter(bean -> bean.getNonQualifierAnnotations().contains(annotation))
+							.filter(bean -> bean.getNonQualifierAnnotation().equals(annotation))
 							.collect(Collectors.toSet());
 
 					cachedAnnotationMap.put(annotation, beans);
@@ -115,14 +116,11 @@ public abstract class DIManager {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public <T> Set<DIBean<T>> getBeansOfType(Class<T> cls, Class<? extends Annotation> annot) {
 		Tuple<Class<?>, Class<? extends Annotation>> key = Tuple.of(cls, annot);
-		
+
 		BiFunction<DIBean<?>, Class<? extends Annotation>, Boolean> beanHasAnnotation = (bean, annotation) -> {
 			Class<? extends Annotation> q = bean.getQualifier();
-			if (q != null && q.equals(annotation)) {
-				return true;
-			}
-
-			return bean.getNonQualifierAnnotations().contains(annotation);
+			Class<? extends Annotation> o = bean.getNonQualifierAnnotation();
+			return (q != null && q.equals(annot)) || (o != null && o.equals(annot));
 		};
 
 		if (!cachedBeansMap.containsKey(key)) {
@@ -134,9 +132,11 @@ public abstract class DIManager {
 							.filter(bean -> bean.getProviderType().equals(cls) && beanHasAnnotation.apply(bean, annot));
 					Stream<DIBean<?>> superclassBeans = results.getSubclassBeans().parallelStream()
 							.filter(bean -> bean.getProviderType().equals(cls) && beanHasAnnotation.apply(bean, annot));
+					Stream<DIBean<?>> generatedBeans = results.getGeneratedBeans().parallelStream()
+							.filter(bean -> bean.getProviderType().equals(cls) && beanHasAnnotation.apply(bean, annot));
 
-					Set<DIBean<?>> beans = Stream.of(annotBeans, interfaceBeans, superclassBeans).flatMap(s -> s)
-							.collect(Collectors.toSet());
+					Set<DIBean<?>> beans = Stream.of(annotBeans, interfaceBeans, superclassBeans, generatedBeans)
+							.flatMap(s -> s).collect(Collectors.toSet());
 					cachedBeansMap.put(key, beans);
 					logger.debug("Added {} in cache", beans);
 				}
@@ -161,8 +161,9 @@ public abstract class DIManager {
 	 * trying to synchronize on the returned map won't be useful
 	 * @return an immutable view of object map (map of DIBean to set of objects created by provider of the bean)
 	 */
-	public abstract Map<DIBean<?>, Set<WeakReference<?>>> getImmutableObjectMap();
-
+	public Map<DIBean<?>, Set<WeakReference<?>>> getObjectMap() {
+		return this.objectMap;
+	}
 
 	/**
 	 * Special case when there is only 1 instance of type

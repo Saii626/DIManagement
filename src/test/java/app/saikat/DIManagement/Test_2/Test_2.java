@@ -20,7 +20,7 @@ public class Test_2 {
 		DIManager manager = DIManager.newInstance();
 
 		try {
-			manager.initialize("app.saikat.DIManagement.Test_2", "app.saikat.DIManagement.Annotations");
+			manager.initialize("app.saikat.DIManagement.Test_2", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 		} catch (CircularDependencyException e) {
 			DIBean<B> bBean = manager.getBeansOfType(B.class).iterator().next();
 			DIBean<D> dBean = manager.getBeansOfType(D.class).iterator().next();

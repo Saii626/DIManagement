@@ -18,7 +18,7 @@ public class Test_7 {
 	@SuppressWarnings("unused")
 	public void test() {
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_7", "app.saikat.Annotations.DIManagement");
+		manager.initialize("app.saikat.DIManagement.Test_7", "app.saikat.Annotations.DIManagement", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		Provider<D> d = manager.getBeansOfType(D.class).iterator().next().getProvider();
 

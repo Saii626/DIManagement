@@ -23,10 +23,10 @@ public class Test_9 {
 	public void test(){
 		DIManager manager = DIManager.newInstance();
 
-		manager.initialize("app.saikat.DIManagement.Test_9", "app.saikat.Annotations");
+		manager.initialize("app.saikat.DIManagement.Test_9", "app.saikat.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
-		DIBean<A> bean = manager.getBeansOfType(A.class).iterator().next();
-		Provider<A> provider = bean.getProvider();
+		DIBean<A> aBean = manager.getBeansOfType(A.class).iterator().next();
+		Provider<A> provider = aBean.getProvider();
 
 		assertTrue("A was not created", A.getNoOfInstances() == 0);
 		assertTrue("B was not created", B.getNoOfInstances() == 0);
@@ -47,7 +47,8 @@ public class Test_9 {
 
 		Set<Object> actual = Sets.newHashSet(a1, a2, a3);
 
-		Set<Object> expected = manager.getImmutableObjectMap().get(bean).parallelStream().map(o -> o.get()).filter(o -> o!= null).collect(Collectors.toSet());
+		System.out.println("Objects: " + manager.getObjectMap().size());
+		Set<Object> expected = manager.getObjectMap().get(aBean).parallelStream().map(o -> o.get()).filter(o -> o!= null).collect(Collectors.toSet());
 
 		assertTrue("All objects are created correctly", actual.equals(expected));
 	}

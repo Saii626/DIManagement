@@ -22,7 +22,7 @@ public class Test_3 {
 	@Test
 	public void test() {
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_3", "app.saikat.DIManagement.Annotations");
+		manager.initialize("app.saikat.DIManagement.Test_3", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		A a = manager.getBeansOfType(A.class).iterator().next().getProvider().get();
 		B b = manager.getBeansOfType(B.class).iterator().next().getProvider().get();
@@ -44,7 +44,7 @@ public class Test_3 {
 
 		assertTrue("Number of E instances", E.getNoOfInstances() == 3);
 
-		Set<Object> allInstances = manager.getImmutableObjectMap()
+		Set<Object> allInstances = manager.getObjectMap()
 				.get(manager.getBeansOfType(E.class).iterator().next()).parallelStream().map(o -> o.get())
 				.filter(o -> o != null).collect(Collectors.toSet());
 

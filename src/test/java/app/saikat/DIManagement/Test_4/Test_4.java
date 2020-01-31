@@ -14,7 +14,7 @@ public class Test_4 {
 	@Test
 	public void test() {
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_4", "app.saikat.DIManagement.Annotations");
+		manager.initialize("app.saikat.DIManagement.Test_4", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		A a = manager.getBeansOfType(A.class).iterator().next().getProvider().get();
 		B b = manager.getBeansOfType(B.class, Q1.class).iterator().next().getProvider().get();
