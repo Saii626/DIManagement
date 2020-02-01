@@ -2,7 +2,6 @@ package app.saikat.DIManagement.Impl.BeanManagers;
 
 import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,7 +32,6 @@ import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.DIBeanType;
 import app.saikat.DIManagement.Interfaces.Results;
-import app.saikat.PojoCollections.Utils.CommonFunc;
 
 public class GeneratorBeanManager extends DIBeanManager {
 
@@ -67,9 +65,8 @@ public class GeneratorBeanManager extends DIBeanManager {
 		DependencyHelper.scanAndSetDependencies(target, results);
 		List<DIBean<?>> unresolvedDependencies = target.getDependencies();
 
-		Method generatorMethod = target.get().getRight().get();
-
-		List<Annotation[]> paramsAnnotations = Lists.newArrayList(generatorMethod.getParameterAnnotations());
+		List<Annotation[]> paramsAnnotations = Lists.newArrayList(target.get().apply(c -> c, m -> m).getParameterAnnotations());
+		int shift = target.get().containsRight() ? 1 : 0;
 		List<DIBean<?>> generatorParams = new ArrayList<>();
 
 		for (int i = 0; i < paramsAnnotations.size(); i++) {
@@ -77,14 +74,12 @@ public class GeneratorBeanManager extends DIBeanManager {
 			boolean isGeneratorParam = annotations.parallelStream()
 					.anyMatch(a -> a.annotationType().equals(GenParam.class));
 			if (isGeneratorParam)
-				generatorParams.add((unresolvedDependencies.set(i + 1, null)));
+				generatorParams.add((unresolvedDependencies.set(i + shift, null)));
 		}
 
 		logger.debug("All dependencies to resolve {}", unresolvedDependencies);
 		List<DIBean<?>> resolvedDependencies = DependencyHelper.resolveAndSetDependencies(target, alreadyResolved,
 				toBeResolved);
-
-		// ((DIBeanImpl<?>) target).setDependencies(resolvedDependencies);
 
 		resolvedDependencies.stream().filter(dep -> dep != null).forEach(dep -> checkAndAddPair(target, dep));
 		mutableGraph.addNode(target);
@@ -170,11 +165,7 @@ public class GeneratorBeanManager extends DIBeanManager {
 				provider.setHelper(helper);
 				partialBean.setProviderBean((DIBeanImpl) providerBean);
 
-				Object createdObj = partialBean.getProvider().get();
-				logger.debug("New instance of {} created {}.", partialBean, createdObj);
-				CommonFunc.safeAddToMapSet(objectMap, bean, new WeakReference<>(createdObj));
-
-				return createdObj;
+				return partialBean.getProvider().get();
 			}
 		};
 

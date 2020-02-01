@@ -6,6 +6,9 @@ import org.junit.Test;
 
 import app.saikat.DIManagement.Interfaces.DIManager;
 
+/**
+ * Testing proper functioning of method generator functions
+ */
 public class Test_13 {
 
 	@Test

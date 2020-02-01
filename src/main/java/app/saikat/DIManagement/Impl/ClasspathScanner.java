@@ -42,7 +42,9 @@ import app.saikat.PojoCollections.CommonObjects.Tuple;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.MethodInfo;
+import io.github.classgraph.MethodParameterInfo;
 import io.github.classgraph.ScanResult;
+import io.github.classgraph.TypeSignature;
 
 public class ClasspathScanner {
 
@@ -163,6 +165,15 @@ public class ClasspathScanner {
 					logger.debug("Found constructor {} with @Inject annotation. Adding bean {} as annotation bean",
 							cons.getName(), clsBean);
 					helper.beanCreated(clsBean, clsBean.getNonQualifierAnnotation());
+				} else {
+					DIBeanImpl<?> clsBean = createMethodBean(cons, qualifierAnnotations, otherAnnotations, false,
+							DIBeanType.ANNOTATION);
+
+					if (clsBean != null) {
+						logger.debug("Found interested constructor {}. Adding bean {} as annotation bean",
+								cons.getName(), clsBean);
+						helper.beanCreated(clsBean, clsBean.getNonQualifierAnnotation());
+					}
 				}
 			});
 			logger.trace("Constructors scan complete");
@@ -313,6 +324,25 @@ public class ClasspathScanner {
 			Class<? extends Annotation> o = otherAnnots != null ? (Class<? extends Annotation>) otherAnnots.loadClass()
 					: null;
 
+			if (meth.isConstructor()) {
+				try {
+					MethodParameterInfo[] allParameterInfo = meth.getParameterInfo();
+					final List<Class<?>> parameterClasses = new ArrayList<>(allParameterInfo.length);
+					for (final MethodParameterInfo mpi : allParameterInfo) {
+						final TypeSignature parameterType = mpi.getTypeSignatureOrTypeDescriptor();
+						parameterClasses.add(Class.forName(parameterType.toString()));
+					}
+					final Class<?>[] parameterClassesArr = parameterClasses.toArray(new Class<?>[0]);
+
+					Class<?> cls = meth.getClassInfo().loadClass();
+					Constructor<?> cons = cls.getConstructor(parameterClassesArr);
+
+					return new DIBeanImpl<>(cons, q, o, meth.hasAnnotation(SINGLETON_ANNOTATION), type);
+
+				} catch (Exception e) {
+				}
+			}
+			
 			Method m = meth.loadClassAndGetMethod();
 			m.setAccessible(true);
 
