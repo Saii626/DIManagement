@@ -6,22 +6,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.graph.MutableGraph;
+import javax.inject.Provider;
 
-import app.saikat.DIManagement.Impl.DIBeanManagerHelper;
+import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
+import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.Results;
 
-public class NoOpBeanManager extends DIBeanManager {
+public class NoOpBeanManager extends BeanManagerImpl {
 
-	public NoOpBeanManager(Results results, MutableGraph<DIBean<?>> mutableGraph, 
-			Map<DIBean<?>, Set<WeakReference<?>>> objectMap, DIBeanManagerHelper helper) {
-		super(results, mutableGraph, objectMap, helper);
+	public NoOpBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
+			DIBeanManagerHelper helper) {
+		super(results, objectMap, helper);
 	}
 
 	@Override
-	public void beanCreated(DIBean<?> bean, Class<?> cls) {
+	public <T> void beanCreated(DIBean<T> bean) {
 	}
 
 	@Override
@@ -32,8 +32,9 @@ public class NoOpBeanManager extends DIBeanManager {
 	public boolean shouldResolveDependency() {
 		return false;
 	}
+
 	@Override
-	public List<DIBean<?>> resolveDependencies(DIBean<?> target, Collection<DIBean<?>> alreadyResolved,
+	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
 			Collection<DIBean<?>> toBeResolved) {
 		return null;
 	}
@@ -41,6 +42,11 @@ public class NoOpBeanManager extends DIBeanManager {
 	@Override
 	public boolean shouldCreateProvider() {
 		return false;
+	}
+
+	@Override
+	public <T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target) {
+		return null;
 	}
 
 	@Override

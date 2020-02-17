@@ -1,10 +1,8 @@
 package app.saikat.DIManagement.Impl.BeanManagers;
 
-import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,79 +10,83 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Provider;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import com.google.common.graph.MutableGraph;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.google.common.reflect.Parameter;
+import com.google.common.reflect.TypeParameter;
+import com.google.common.reflect.TypeToken;
 
 import app.saikat.Annotations.DIManagement.Generator;
-import app.saikat.Annotations.DIManagement.NoQualifier;
 import app.saikat.Annotations.DIManagement.GenParam;
-import app.saikat.DIManagement.Exceptions.WrongGeneratorParamsProvided;
-import app.saikat.DIManagement.Impl.DIBeanManagerHelper;
-import app.saikat.DIManagement.Impl.DependencyHelper;
-import app.saikat.DIManagement.Impl.ProviderImpl;
+import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
+import app.saikat.DIManagement.Impl.Helpers.DependencyHelper;
 import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
+import app.saikat.DIManagement.Impl.ExternalImpl.GeneratorImpl;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.DIBeanManager;
-import app.saikat.DIManagement.Interfaces.DIBeanType;
 import app.saikat.DIManagement.Interfaces.Results;
 
-public class GeneratorBeanManager extends DIBeanManager {
+public class GeneratorBeanManager extends BeanManagerImpl {
 
 	// private Map<>
-	@SuppressWarnings("rawtypes")
-	private Map<DIBean<?>, ConstantProviderBean<Generator>> toBeGeneratedMap = new ConcurrentHashMap<>();
+	// @SuppressWarnings("rawtypes")
+	private Map<DIBean<?>, ConstantProviderBean<Generator<?>>> toBeGeneratedMap = new ConcurrentHashMap<>();
 
-	public GeneratorBeanManager(Results results, MutableGraph<DIBean<?>> mutableGraph,
-			Map<DIBean<?>, Set<WeakReference<?>>> objectMap, DIBeanManagerHelper helper) {
-		super(results, mutableGraph, objectMap, helper);
+	public GeneratorBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
+			DIBeanManagerHelper helper) {
+		super(results, objectMap, helper);
 	}
 
 	@Override
-	@SuppressWarnings("rawtypes")
-	public void beanCreated(DIBean<?> bean, Class<?> type) {
-		super.beanCreated(bean, type);
+	@SuppressWarnings({ "rawtypes", "serial", "unchecked" })
+	public <T> void beanCreated(DIBean<T> bean) {
+		super.beanCreated(bean);
 
-		ConstantProviderBean<Generator> genProvider = new ConstantProviderBean<>(null, Generator.class,
-				bean.getQualifier(), Collections.singletonList(bean.getProviderType().getTypeName()),
-				DIBeanType.GENERATED);
+		if (!(bean instanceof DIBeanImpl<?>)) {
+			throw new RuntimeException(
+					String.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s",
+							bean.getClass().getSimpleName()));
+		}
 
-		toBeGeneratedMap.put(bean, genProvider);
+		TypeToken<Generator<T>> generatorTypeToken = new TypeToken<Generator<T>>() {
+		}.where(new TypeParameter<T>() {
+		}, bean.getProviderType().wrap());
+
+		ConstantProviderBean<Generator<T>> genProvider = new ConstantProviderBean<>(generatorTypeToken,
+				bean.getQualifier());
+		toBeGeneratedMap.put(bean, (ConstantProviderBean) genProvider);
 		results.addGeneratedBean(genProvider);
 	}
 
 	@Override
-	public List<DIBean<?>> resolveDependencies(DIBean<?> target, Collection<DIBean<?>> alreadyResolved,
+	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
 			Collection<DIBean<?>> toBeResolved) {
 
-		logger.debug("Scanning dependencies of {}", target);
-		DependencyHelper.scanAndSetDependencies(target, results);
+		if (!(target instanceof DIBeanImpl<?>)) {
+			throw new RuntimeException(String.format(
+					"Dont know how to resolve dependency of %s, as it is not instance of DIBeanImpl.class",
+					target.toString()));
+		}
+
+		DIBeanImpl<T> t = (DIBeanImpl<T>) target;
+		logger.debug("Scanning dependencies of {}", t);
+		DependencyHelper.scanAndSetDependencies(t, results);
 		List<DIBean<?>> unresolvedDependencies = target.getDependencies();
 
-		List<Annotation[]> paramsAnnotations = Lists.newArrayList(target.get().apply(c -> c, m -> m).getParameterAnnotations());
-		int shift = target.get().containsRight() ? 1 : 0;
 		List<DIBean<?>> generatorParams = new ArrayList<>();
+		List<Parameter> parameters = t.getInvokable().getParameters();
 
-		for (int i = 0; i < paramsAnnotations.size(); i++) {
-			Set<Annotation> annotations = Sets.newHashSet(paramsAnnotations.get(i));
-			boolean isGeneratorParam = annotations.parallelStream()
-					.anyMatch(a -> a.annotationType().equals(GenParam.class));
-			if (isGeneratorParam)
-				generatorParams.add((unresolvedDependencies.set(i + shift, null)));
+		for (int i = 0; i < parameters.size(); i++) {
+			if (parameters.get(i).getAnnotation(GenParam.class) != null)
+				generatorParams.add((unresolvedDependencies.set(i + 1, null)));
 		}
 
 		logger.debug("All dependencies to resolve {}", unresolvedDependencies);
-		List<DIBean<?>> resolvedDependencies = DependencyHelper.resolveAndSetDependencies(target, alreadyResolved,
+		List<DIBean<?>> resolvedDependencies = DependencyHelper.resolveAndSetDependencies(t, alreadyResolved,
 				toBeResolved);
 
-		resolvedDependencies.stream().filter(dep -> dep != null).forEach(dep -> checkAndAddPair(target, dep));
-		mutableGraph.addNode(target);
+		// resolvedDependencies.stream().filter(dep -> dep != null).forEach(dep -> checkAndAddPair(t, dep));
+		// mutableGraph.addNode(t);
 
-		createGeneratorBean(target, generatorParams);
+		createGeneratorBean(t, generatorParams);
 		return resolvedDependencies;
 	}
 
@@ -94,83 +96,13 @@ public class GeneratorBeanManager extends DIBeanManager {
 	}
 
 	@SuppressWarnings("rawtypes")
-	private void createGeneratorBean(DIBean<?> bean, List<DIBean<?>> generatorParams) {
+	private void createGeneratorBean(DIBeanImpl<?> bean, List<DIBean<?>> generatorParams) {
 
 		logger.debug("Creating generator: {} with generator params: {}", bean, generatorParams);
-		Generator<?> generator = new Generator() {
+		Generator<?> generator = new GeneratorImpl<>(bean, generatorParams, helper);
 
-			private Logger logger = LogManager.getLogger(this.getClass());
-			private DIBeanImpl<?> partialBean = new DIBeanImpl<>(bean);
-
-			private boolean validateInput(Object[] args) {
-				if (args.length != generatorParams.size())
-					return false;
-
-				for (int i = 0; i < args.length; i++) {
-					if (!generatorParams.get(i).getProviderType().isAssignableFrom(args[i].getClass()))
-						return false;
-				}
-
-				return true;
-			}
-
-			@Override
-			@SuppressWarnings("unchecked")
-			public Object generate(Object... args) {
-				if (!validateInput(args)) {
-					StringBuilder builder = new StringBuilder("Wrong arguments provided for Generator<");
-					builder.append(partialBean.getProviderType().getSimpleName()).append(">.\n Required: ( ");
-
-					generatorParams
-							.forEach(param -> builder.append(param.getProviderType().getSimpleName()).append(", "));
-
-					builder.append(" ). Found: ( ");
-
-					for (Object object : args) {
-						builder.append(object.getClass().getSimpleName()).append(", ");
-					}
-
-					builder.append(" )");
-
-					throw new WrongGeneratorParamsProvided(builder.toString());
-				}
-
-				logger.debug("Arguments to generator correct");
-				List<ConstantProviderBean<?>> dynamicParams = new ArrayList<>(args.length);
-
-				logger.debug("Creating dynamic dependencies for {}", partialBean);
-				for (Object obj : args) {
-					dynamicParams.add(new ConstantProviderBean(obj, obj.getClass(), NoQualifier.class,
-							Collections.emptyList(), DIBeanType.GENERATED));
-				}
-
-				logger.debug("Dynamic dependencies created: {}", dynamicParams);
-
-				List<DIBean<?>> deps = partialBean.getDependencies();
-				int j = 0;
-				for (int i = 1; i < deps.size(); i++) {
-					if (deps.get(i) == null) {
-						deps.set(i, dynamicParams.get(j));
-						j++;
-					}
-				}
-
-				logger.debug("Final dependencies: {}", deps);
-
-				ProviderImpl<?> provider = new ProviderImpl<>(partialBean);
-				ConstantProviderBean<Provider> providerBean = new ConstantProviderBean<>(provider, Provider.class,
-						partialBean.getQualifier(),
-						Collections.singletonList(partialBean.getProviderType().getTypeName()), DIBeanType.GENERATED);
-
-				provider.setHelper(helper);
-				partialBean.setProviderBean((DIBeanImpl) providerBean);
-
-				return partialBean.getProvider().get();
-			}
-		};
-
-		ConstantProviderBean<Generator> genBean = toBeGeneratedMap.get(bean);
-		genBean.setProvider(new Provider<Generator>() {
+		ConstantProviderBean<Generator<?>> genBean = toBeGeneratedMap.get(bean);
+		genBean.setProvider(new Provider<Generator<?>>() {
 			@Override
 			public Generator get() {
 				return generator;

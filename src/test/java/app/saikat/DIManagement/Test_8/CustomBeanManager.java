@@ -6,18 +6,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.graph.MutableGraph;
-
-import app.saikat.DIManagement.Impl.DIBeanManagerHelper;
+import app.saikat.DIManagement.Impl.BeanManagers.BeanManagerImpl;
+import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.Results;
 
-public class CustomBeanManager extends DIBeanManager {
+public class CustomBeanManager extends BeanManagerImpl {
 
-	public CustomBeanManager(Results results, MutableGraph<DIBean<?>> mutableGraph,
-			Map<DIBean<?>, Set<WeakReference<?>>> objectMap, DIBeanManagerHelper helper) {
-		super(results, mutableGraph, objectMap, helper);
+	public CustomBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
+			DIBeanManagerHelper helper) {
+		super(results, objectMap, helper);
 	}
 
 	@Override
@@ -26,7 +24,7 @@ public class CustomBeanManager extends DIBeanManager {
 	}
 
 	@Override
-	public List<DIBean<?>> resolveDependencies(DIBean<?> target, Collection<DIBean<?>> alreadyResolved,
+	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
 			Collection<DIBean<?>> toBeResolved) {
 		return null;
 	}

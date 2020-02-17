@@ -1,28 +1,28 @@
-package app.saikat.DIManagement.Impl;
+package app.saikat.DIManagement.Impl.ExternalImpl;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 import javax.inject.Inject;
 import javax.inject.Provider;
 
+import com.google.common.reflect.Invokable;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import app.saikat.Annotations.DIManagement.NoQualifier;
+import app.saikat.DIManagement.Impl.BuildContext;
 import app.saikat.DIManagement.Impl.BeanManagers.InjectBeanManager;
 import app.saikat.DIManagement.Impl.BeanManagers.PostConstructBeanManager;
-import app.saikat.DIManagement.Impl.DIBeans.BuildContext;
 import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
+import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.DIBeanType;
-import app.saikat.PojoCollections.CommonObjects.Either;
 
 public class ProviderImpl<T> implements Provider<T> {
 
@@ -30,17 +30,14 @@ public class ProviderImpl<T> implements Provider<T> {
 	private T singletonInstance = null;
 
 	// Pointer to parent bean
-	private final DIBean<T> bean;
+	private final DIBeanImpl<T> bean;
 
-	private DIBeanManagerHelper helper;
+	private final DIBeanManagerHelper helper;
 
 	private Logger logger = LogManager.getLogger(Provider.class);
 
-	public ProviderImpl(DIBean<T> bean) {
+	public ProviderImpl(DIBeanImpl<T> bean, DIBeanManagerHelper helper) {
 		this.bean = bean;
-	}
-
-	public void setHelper(DIBeanManagerHelper helper) {
 		this.helper = helper;
 	}
 
@@ -92,62 +89,34 @@ public class ProviderImpl<T> implements Provider<T> {
 
 	// }
 
-	@SuppressWarnings("unchecked")
 	private T createNewInstance()
 			throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-		Either<Constructor<T>, Method> underlyingExecutable = this.bean.get();
+		Invokable<Object, T> underlyingExecutable = (Invokable<Object, T>) this.bean.getInvokable();
 		List<DIBean<?>> dependencies = this.bean.getDependencies();
 
-		logger.info("Creating new instance from bean {}, with dependencies: {}", bean, dependencies);
-		int shift = this.bean.get().containsRight() ? 1 : 0;
+		List<Object> parameters = dependencies.stream().map(b -> b == null ? null : b.getProvider().get()).collect(Collectors.toList());
 
-		Object[] parameters = new Object[dependencies.size() - shift];
+		T ret = underlyingExecutable.invoke(parameters.get(0), parameters.subList(1, parameters.size()).toArray());
+		logger.info("Created new object {} for bean {}", ret, this.bean);
 
-		for (int i = 0; i < parameters.length; i++) {
-			parameters[i] = dependencies.get(i + shift).getProvider().get();
-		}
-
-		T ret;
-		if (shift == 0) {
-			Constructor<T> constructor = underlyingExecutable.getLeft().get();
-			ret = constructor.newInstance(parameters);
-		} else {
-			Method method = underlyingExecutable.getRight().get();
-			DIBean<?> parent = dependencies.get(0);
-			Object o = parent != null ? parent.getProvider().get() : null;
-			ret = (T) method.invoke(o, parameters);
-		}
-
-		logger.debug("Created object: {}", ret);
-
-		ConstantProviderBean<T> currentObjectProvider = new ConstantProviderBean<>(ret, this.bean.getProviderType(),
-				this.bean.getQualifier(), Collections.emptyList(), DIBeanType.GENERATED);
+		ConstantProviderBean<T> currentObjectProvider = new ConstantProviderBean<>(this.bean.getProviderType(), NoQualifier.class);
+		currentObjectProvider.setProvider(() -> ret);
 
 		// Add setter injections to buildContext
 		InjectBeanManager manager = (InjectBeanManager) helper.getManagerOf(Inject.class);
-
-		// Do shallow copy so that we can modify the dependencies in a thread safe way
 		Set<DIBean<?>> setterInjections = new HashSet<>(manager.getSetterInjectionsFor(bean));
 
-		setterInjections.parallelStream().map(b -> {
-			// Do a shallow copy so that creating multiple instances are thread safe
-			DIBean<?> copyBean = new DIBeanImpl<>(b);
-			List<DIBean<?>> dep = copyBean.getDependencies();
-			dep.set(0, currentObjectProvider);
-			// ((DIBeanImpl<?>) copyBean).getDependencies().addAll(dep);
-
-			return copyBean;
-		}).forEach(BuildContext::addToSetterInjection);
+		setterInjections.parallelStream().map(b -> ((DIBeanImpl<?>) b).copy()).forEach(b -> {
+			b.getDependencies().set(0, currentObjectProvider);
+			BuildContext.addToSetterInjection(b);
+		});
 
 		// Add postConstruct to buildcontext
 		PostConstructBeanManager pManager = (PostConstructBeanManager) helper.getManagerOf(PostConstruct.class);
-
 		DIBean<?> origPostBean = pManager.getPostConstructBean(bean);
 		if (origPostBean != null) {
-			DIBean<?> postConstructBean = new DIBeanImpl<>(origPostBean);
-			List<DIBean<?>> dep = bean.getDependencies();
-			dep.set(0, currentObjectProvider);
-
+			DIBeanImpl<?> postConstructBean = ((DIBeanImpl<?>)origPostBean).copy();
+			postConstructBean.getDependencies().set(0, currentObjectProvider);
 			BuildContext.addToPostConstruct(postConstructBean);
 		}
 		return ret;

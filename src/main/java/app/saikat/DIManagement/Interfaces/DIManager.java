@@ -5,9 +5,7 @@ import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,8 +16,7 @@ import app.saikat.PojoCollections.CommonObjects.Tuple;
 
 public abstract class DIManager {
 
-	// private static DIManager INSTANCE;
-	protected final Logger logger = LogManager.getLogger(this.getClass());
+	protected final Logger logger = LogManager.getLogger(DIManager.class);
 
 	/**
 	 * Returns a new current instance of DIManager
@@ -117,34 +114,20 @@ public abstract class DIManager {
 	public <T> Set<DIBean<T>> getBeansOfType(Class<T> cls, Class<? extends Annotation> annot) {
 		Tuple<Class<?>, Class<? extends Annotation>> key = Tuple.of(cls, annot);
 
-		BiFunction<DIBean<?>, Class<? extends Annotation>, Boolean> beanHasAnnotation = (bean, annotation) -> {
-			Class<? extends Annotation> q = bean.getQualifier();
-			Class<? extends Annotation> o = bean.getNonQualifierAnnotation();
-			return (q != null && q.equals(annot)) || (o != null && o.equals(annot));
-		};
-
 		if (!cachedBeansMap.containsKey(key)) {
 			synchronized (cachedBeansMap) {
 				if (!cachedBeansMap.containsKey(key)) {
-					Stream<DIBean<?>> annotBeans = results.getAnnotationBeans().parallelStream()
-							.filter(bean -> bean.getProviderType().equals(cls) && beanHasAnnotation.apply(bean, annot));
-					Stream<DIBean<?>> interfaceBeans = results.getInterfaceBeans().parallelStream()
-							.filter(bean -> bean.getProviderType().equals(cls) && beanHasAnnotation.apply(bean, annot));
-					Stream<DIBean<?>> superclassBeans = results.getSubclassBeans().parallelStream()
-							.filter(bean -> bean.getProviderType().equals(cls) && beanHasAnnotation.apply(bean, annot));
-					Stream<DIBean<?>> generatedBeans = results.getGeneratedBeans().parallelStream()
-							.filter(bean -> bean.getProviderType().equals(cls) && beanHasAnnotation.apply(bean, annot));
-
-					Set<DIBean<?>> beans = Stream.of(annotBeans, interfaceBeans, superclassBeans, generatedBeans)
-							.flatMap(s -> s).collect(Collectors.toSet());
-					cachedBeansMap.put(key, beans);
+					Set<DIBean<T>> beans = getBeanOfTypeUncached(cls, annot);
 					logger.debug("Added {} in cache", beans);
+					cachedBeansMap.put(key, (Set) beans);
 				}
 			}
 		}
 
 		return (Set) cachedBeansMap.get(key);
 	}
+
+	protected abstract <T> Set<DIBean<T>> getBeanOfTypeUncached(Class<T> cls, Class<? extends Annotation> annot);
 
 	/**
 	 * Returns set of beans which provides specified type of object and has no qualifier annotation

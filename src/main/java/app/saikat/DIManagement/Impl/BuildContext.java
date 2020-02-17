@@ -1,4 +1,4 @@
-package app.saikat.DIManagement.Impl.DIBeans;
+package app.saikat.DIManagement.Impl;
 
 import java.util.LinkedList;
 import java.util.Queue;
@@ -86,13 +86,11 @@ public class BuildContext implements AutoCloseable {
 			}
 		};
 
-		logger.debug("Executing setter injection");
+		logger.debug(data.setterInject.size() > 0 ? "Executing setter injection" : "No setter injections");
 		invokeQueue.accept(data.setterInject);
-		logger.debug("Setter injections executed");
 
-		logger.debug("Executing postconstruct");
+		logger.debug(data.postConstruct.size() > 0 ? "Executing postconstructs" : "No postconstructs");
 		invokeQueue.accept(data.postConstruct);
-		logger.debug("Postconstructs executed");
 
 		contextData.remove();
 	}

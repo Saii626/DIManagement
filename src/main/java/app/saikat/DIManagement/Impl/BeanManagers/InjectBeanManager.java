@@ -8,41 +8,53 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.graph.MutableGraph;
+import com.google.common.reflect.TypeToken;
 
 import app.saikat.DIManagement.Exceptions.NotValidBean;
-import app.saikat.DIManagement.Impl.DIBeanManagerHelper;
+import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
+import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.Results;
 import app.saikat.PojoCollections.Utils.CommonFunc;
 
-public class InjectBeanManager extends DIBeanManager {
+public class InjectBeanManager extends BeanManagerImpl {
 
 	// Map of parent (enclosing class) bean to set of setter beans
 	private Map<DIBean<?>, Set<DIBean<?>>> setterInjectBeans = new HashMap<>();
 
-	public InjectBeanManager(Results results, MutableGraph<DIBean<?>> mutableGraph, 
-			Map<DIBean<?>, Set<WeakReference<?>>> objectMap, DIBeanManagerHelper helper) {
-		super(results, mutableGraph, objectMap, helper);
+	public InjectBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
+			DIBeanManagerHelper helper) {
+		super(results, objectMap, helper);
 	}
 
 	@Override
-	public void beanCreated(DIBean<?> bean, Class<?> type) {
-		super.beanCreated(bean, type);
+	public <T> void beanCreated(DIBean<T> bean) {
+		super.beanCreated(bean);
 
-		if (bean.get().containsRight() && !bean.getProviderType().equals(Void.TYPE)) {
+		if (!(bean instanceof DIBeanImpl<?>)) {
+			throw new RuntimeException(
+					String.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s",
+							bean.getClass().getSimpleName()));
+		}
+
+		if (((DIBeanImpl<?>) bean).isMethod() && !bean.getProviderType().equals(TypeToken.of(Void.TYPE))) {
 			throw new NotValidBean(bean, "Setter injection should not return value");
-		} 
+		}
 	}
 
-
 	@Override
-	public List<DIBean<?>> resolveDependencies(DIBean<?> target, Collection<DIBean<?>> alreadyResolved,
+	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
 			Collection<DIBean<?>> toBeResolved) {
+
+		if (!(target instanceof DIBeanImpl<?>)) {
+			throw new RuntimeException(
+					String.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s",
+							target.getClass().getSimpleName()));
+		}
+
 		List<DIBean<?>> deps = super.resolveDependencies(target, alreadyResolved, toBeResolved);
 
-		if (target.get().containsRight()) {
+		if (((DIBeanImpl<?>) target).isMethod()) {
 			CommonFunc.addToMapSet(setterInjectBeans, deps.get(0), target);
 		}
 

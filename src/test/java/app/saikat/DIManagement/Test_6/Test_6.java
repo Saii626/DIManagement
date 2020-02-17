@@ -3,14 +3,14 @@ package app.saikat.DIManagement.Test_6;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.reflect.Invokable;
+
 import org.junit.Test;
 
-import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Interfaces.DIManager;
 
 
@@ -34,12 +34,12 @@ public class Test_6 {
 		manager.getBeansAnnotatedWith(MethodAnnot_1.class).forEach(bean -> bean.getProvider().get());
 		manager.getBeansAnnotatedWith(MethodAnnot_2.class).forEach(bean -> bean.getProvider().get());
 
-		Set<Method> actual = manager.getBeansAnnotatedWith(MethodAnnot_3.class).parallelStream()
-				.map(bean -> ((DIBeanImpl<?>) bean).get().getRight().get()).collect(Collectors.toSet());
+		Set<Invokable<Object, ?>> actual = manager.getBeansAnnotatedWith(MethodAnnot_3.class).parallelStream()
+				.map(bean -> bean.getInvokable()).collect(Collectors.toSet());
 
-		Set<Method> expected = new HashSet<>();
-		expected.add(C.class.getMethod("setE", E.class));
-		expected.add(E.class.getMethod("testFunc"));
+		Set<Invokable<?, ?>> expected = new HashSet<>();
+		expected.add(Invokable.from(C.class.getMethod("setE", E.class)));
+		expected.add(Invokable.from(E.class.getMethod("testFunc")));
 
 		assertEquals("A.B vs B", a.getB(), b);
 		assertEquals("A state", a.getStr(), "State 2");

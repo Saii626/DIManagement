@@ -1,60 +1,52 @@
 package app.saikat.DIManagement.Impl;
 
+import java.lang.annotation.Annotation;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-import javax.inject.Provider;
+import com.google.common.reflect.TypeToken;
 
-import com.google.common.graph.GraphBuilder;
-import com.google.common.graph.MutableGraph;
-
-import app.saikat.Annotations.DIManagement.NoQualifier;
-import app.saikat.DIManagement.Impl.BeanManagers.NoOpBeanManager;
-import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
-import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
+import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
-import app.saikat.DIManagement.Interfaces.DIBeanType;
 import app.saikat.DIManagement.Interfaces.DIManager;
 
 public class DIManagerImpl extends DIManager {
 
 	// Data structures
-	private MutableGraph<DIBean<?>> mutableGraph;
+	// private MutableGraph<DIBean<?>> mutableGraph;
 
 	private DIBeanManagerHelper helper;
 
-	public DIManagerImpl() {
-		mutableGraph = GraphBuilder.directed().allowsSelfLoops(false).build();
-	}
+	// public DIManagerImpl() {
+	// mutableGraph = GraphBuilder.directed().allowsSelfLoops(false).build();
+	// }
 
 	@Override
 	public void initialize(String... pathsToScan) {
 
 		logger.info("Initializing DIManager");
-		helper = new DIBeanManagerHelper(results, mutableGraph, objectMap);
-
-		ConstantProviderBean<DIManager> managerBean = new ConstantProviderBean<>(this, DIManager.class,
-				NoQualifier.class, Collections.emptyList(), DIBeanType.GENERATED);
-		results.addGeneratedBean(managerBean);
+		helper = new DIBeanManagerHelper(results, objectMap);
 
 		// Scanning
 		logger.info("Starting scans");
 		ClasspathScanner scanner = new ClasspathScanner(results, helper);
-		scanner.scan(pathsToScan);
+		scanner.scan(this, pathsToScan);
 
-		managerBean.setBeanManager(helper.getManagerOf(NoOpBeanManager.class));
 		helper.getAllBeanManagers().parallelStream().forEach(DIBeanManager::scanComplete);
 
 		// Create providers first. Since the dependencies are resolved when the provider
 		// is actually invoked, there is no issue in creating providers first
-		createProviders();
+		createProviderBeans();
 		helper.getAllBeanManagers().parallelStream().forEach(DIBeanManager::providerCreated);
 
-		logger.debug("All generated beans: {}", results.getGeneratedBeans());
+		logger.info("All generated beans: {}", results.getGeneratedBeans());
 
 		// Resolving dependencies
 		resolveDependencies();
@@ -63,8 +55,7 @@ public class DIManagerImpl extends DIManager {
 
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private void createProviders() {
+	private void createProviderBeans() {
 		Queue<DIBean<?>> toCreate = new LinkedList<>();
 		toCreate.addAll(results.getAnnotationBeans());
 		toCreate.addAll(results.getInterfaceBeans());
@@ -73,25 +64,12 @@ public class DIManagerImpl extends DIManager {
 		while (!toCreate.isEmpty()) {
 			DIBean<?> current = toCreate.poll();
 
-			if (!current.getBeanManager().shouldCreateProvider())
+			if (!current.getBeanManager().shouldCreateProvider()) {
+				logger.debug("Skipping creation on Provider for {} as shouldCreateProvider is false", current);
 				continue;
+			}
 
-			logger.debug("Creating provider of {}", current);
-			ProviderImpl<?> provider = new ProviderImpl<>(current);
-			provider.setHelper(helper);
-			
-			ConstantProviderBean<Provider> providerBean = new ConstantProviderBean<>(provider, Provider.class,
-					current.getQualifier(), Collections.singletonList(current.getProviderType().getTypeName()),
-					DIBeanType.GENERATED);
-
-			providerBean.setBeanManager(helper.getManagerOf(DIBeanManager.class));
-			logger.debug("Provider created for {}", current);
-
-			mutableGraph.putEdge(providerBean, current);
-			results.addGeneratedBean(providerBean);
-
-			logger.debug("Setting {} as provider bean of {} ", providerBean, current);
-			((DIBeanImpl) current).setProviderBean(providerBean);
+			current.getBeanManager().createProviderBean(current);
 		}
 	}
 
@@ -113,8 +91,35 @@ public class DIManagerImpl extends DIManager {
 			resolved.add(current);
 		}
 	}
-
+	
 	// private List<DIBean<?>> getBuildListFor(DIBean<?> bean) {
+
+	@Override
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	protected <T> Set<DIBean<T>> getBeanOfTypeUncached(Class<T> cls, Class<? extends Annotation> annot) {
+		TypeToken<T> type = TypeToken.of(cls);
+
+		BiFunction<DIBean<?>, Class<? extends Annotation>, Boolean> beanHasAnnotation = (bean, annotation) -> {
+			Class<? extends Annotation> q = bean.getQualifier();
+			Class<? extends Annotation> o = bean.getNonQualifierAnnotation();
+			return (q != null && q.equals(annot)) || (o != null && o.equals(annot));
+		};
+
+		Stream<DIBean<?>> annotBeans = results.getAnnotationBeans().parallelStream()
+				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+		Stream<DIBean<?>> interfaceBeans = results.getInterfaceBeans().parallelStream()
+				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+		Stream<DIBean<?>> superclassBeans = results.getSubclassBeans().parallelStream()
+				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+		Stream<DIBean<?>> generatedBeans = results.getGeneratedBeans().parallelStream()
+				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+
+		Set<DIBean<?>> beans = Stream.of(annotBeans, interfaceBeans, superclassBeans, generatedBeans).flatMap(s -> s)
+				.collect(Collectors.toSet());
+		logger.debug("Added {} in cache", beans);
+
+		return (Set) beans;
+	}
 
 	// 	if (!mutableGraph.nodes().contains(bean)) {
 	// 		logger.warn("Bean {} not present", bean);

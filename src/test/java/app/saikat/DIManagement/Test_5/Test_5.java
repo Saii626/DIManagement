@@ -11,6 +11,7 @@ import org.junit.Test;
 
 import app.saikat.DIManagement.Interfaces.DIManager;
 
+
 /**
  * Test for custom class annotations
  */
@@ -26,7 +27,7 @@ public class Test_5 {
 		B b = manager.getBeansOfType(B.class).iterator().next().getProvider().get();
 
 		Set<Class<?>> actual = manager.getBeansAnnotatedWith(ClassAnnot_2.class).parallelStream()
-				.map(bean -> bean.getProviderType()).collect(Collectors.toSet());
+				.map(bean -> bean.getProviderType().getRawType()).collect(Collectors.toSet());
 		Set<Class<?>> expectedClasses = new HashSet<>();
 		expectedClasses.add(C.class);
 		expectedClasses.add(E.class);
