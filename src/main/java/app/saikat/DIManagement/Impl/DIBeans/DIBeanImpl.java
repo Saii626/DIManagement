@@ -66,7 +66,8 @@ public class DIBeanImpl<T> implements DIBean<T>, Copyable<DIBeanImpl<T>> {
 				bean.getSuperClass(), bean.isSingleton(), bean.getBeanManager(), bean.getBeanType());
 
 		this.dependencies.addAll(bean.getDependencies());
-		this.providerBean = bean.getProviderBean() != null ? bean.getProviderBean().copy() : null;
+		this.providerBean = bean.getProviderBean() != null ? bean.getProviderBean()
+				.copy() : null;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -139,7 +140,8 @@ public class DIBeanImpl<T> implements DIBean<T>, Copyable<DIBeanImpl<T>> {
 
 	@Override
 	public Provider<T> getProvider() {
-		return providerBean.getProvider().get();
+		return providerBean.getProvider()
+				.get();
 	}
 
 	@Override

@@ -57,9 +57,9 @@ public class DIBeanManagerHelper {
 						logger.error("Error: ", e);
 					}
 					return null;
-				}).filter(Objects::nonNull).forEach(m -> {
-					beanManagers.put(m.getClass(), m);
-				});
+				})
+				.filter(Objects::nonNull)
+				.forEach(m -> beanManagers.put(m.getClass(), m));
 	}
 
 	@SuppressWarnings("unchecked")
@@ -78,16 +78,18 @@ public class DIBeanManagerHelper {
 					: (Class<? extends DIBeanManager>) managerClass;
 		};
 
-		Class<? extends DIBeanManager> mgr = getBeanManager.apply(results.getAnnotationsToScan().get(cls),
-				m -> ((ScanAnnotation) m).beanManager());
+		Class<? extends DIBeanManager> mgr = getBeanManager.apply(results.getAnnotationsToScan()
+				.get(cls), m -> ((ScanAnnotation) m).beanManager());
 		if (mgr != null)
 			return beanManagers.get(mgr);
 
-		mgr = getBeanManager.apply(results.getInterfacesToScan().get(cls), m -> ((ScanInterface) m).beanManager());
+		mgr = getBeanManager.apply(results.getInterfacesToScan()
+				.get(cls), m -> ((ScanInterface) m).beanManager());
 		if (mgr != null)
 			return beanManagers.get(mgr);
 
-		mgr = getBeanManager.apply(results.getSuperClassesToScan().get(cls), m -> ((ScanSubClass) m).beanManager());
+		mgr = getBeanManager.apply(results.getSuperClassesToScan()
+				.get(cls), m -> ((ScanSubClass) m).beanManager());
 		return beanManagers.get(mgr == null ? NoOpBeanManager.class : mgr);
 	}
 

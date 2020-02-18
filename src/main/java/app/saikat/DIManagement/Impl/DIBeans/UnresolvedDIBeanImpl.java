@@ -83,6 +83,6 @@ public class UnresolvedDIBeanImpl<T> implements DIBean<T> {
 		String qString = qualifier != null ? "@" + qualifier.getSimpleName() : "null";
 		String tString = getProviderType().toString();
 
-		return "u[" + qString  + ":" + tString + "]";
+		return "u[" + qString + ":" + tString + "]";
 	}
 }

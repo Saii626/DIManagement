@@ -1,18 +1,50 @@
 package app.saikat.DIManagement.Interfaces;
 
+import java.lang.annotation.Annotation;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 import javax.inject.Provider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import app.saikat.Annotations.DIManagement.ScanAnnotation;
+import app.saikat.Annotations.DIManagement.ScanInterface;
+import app.saikat.Annotations.DIManagement.ScanSubClass;
 import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
 
 public interface DIBeanManager {
 
 	Logger logger = LogManager.getLogger(DIBeanManager.class);
+
+	/**
+	 * Adds an annotation to scan. This does not mean that no other bean can
+	 * have this as their {@link DIBeanManager}. An annotation can explicitly
+	 * its DIBeanManager when annotated with {@link ScanAnnotation}
+	 * @return a map of annotation and scanSnnotation whose beans should be
+	 * maintained by this class
+	 */
+	Map<Class<? extends Annotation>, ScanAnnotation> addAnnotationsToScan();
+
+	/**
+	 * Adds an interface to scan. This does not mean that no other bean can
+	 * have this as their {@link DIBeanManager}. An annotation can explicitly
+	 * its DIBeanManager when annotated with {@link ScanInterface}
+	 * @return a map of interface and scanInterface whose beans should be
+	 * maintained by this class
+	 */
+	Map<Class<?>, ScanInterface> addInterfacessToScan();
+
+	/**
+	 * Adds an superclass to scan. This does not mean that no other bean can
+	 * have this as their {@link DIBeanManager}. An annotation can explicitly
+	 * its DIBeanManager when annotated with {@link ScanSubClass}
+	 * @return a map of superclass and scanSubClass whose beans should be
+	 * maintained by this class
+	 */
+	Map<Class<?>, ScanSubClass> addSubClassesToScan();
 
 	/**
 	 * Callback called after a bean has been created
@@ -55,7 +87,6 @@ public interface DIBeanManager {
 	 * @return true if the bean should be scanned and resolved, else false
 	 */
 	boolean shouldCreateProvider();
-
 
 	/**
 	 * Method called to create provider bean.

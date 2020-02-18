@@ -1,5 +1,6 @@
 package app.saikat.DIManagement.Impl.BeanManagers;
 
+import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.Collections;
@@ -8,8 +9,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.inject.Inject;
+
 import com.google.common.reflect.TypeToken;
 
+import app.saikat.Annotations.DIManagement.ScanAnnotation;
 import app.saikat.DIManagement.Exceptions.NotValidBean;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
@@ -28,16 +32,22 @@ public class InjectBeanManager extends BeanManagerImpl {
 	}
 
 	@Override
+	public Map<Class<? extends Annotation>, ScanAnnotation> addAnnotationsToScan() {
+		return Collections.singletonMap(Inject.class, createScanAnnotationWithBeanManager(this.getClass()));
+	}
+
+	@Override
 	public <T> void beanCreated(DIBean<T> bean) {
 		super.beanCreated(bean);
 
 		if (!(bean instanceof DIBeanImpl<?>)) {
-			throw new RuntimeException(
-					String.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s",
-							bean.getClass().getSimpleName()));
+			throw new RuntimeException(String
+					.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s", bean.getClass()
+							.getSimpleName()));
 		}
 
-		if (((DIBeanImpl<?>) bean).isMethod() && !bean.getProviderType().equals(TypeToken.of(Void.TYPE))) {
+		if (((DIBeanImpl<?>) bean).isMethod() && !bean.getProviderType()
+				.equals(TypeToken.of(Void.TYPE))) {
 			throw new NotValidBean(bean, "Setter injection should not return value");
 		}
 	}
@@ -48,8 +58,9 @@ public class InjectBeanManager extends BeanManagerImpl {
 
 		if (!(target instanceof DIBeanImpl<?>)) {
 			throw new RuntimeException(
-					String.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s",
-							target.getClass().getSimpleName()));
+					String.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s", target
+							.getClass()
+							.getSimpleName()));
 		}
 
 		List<DIBean<?>> deps = super.resolveDependencies(target, alreadyResolved, toBeResolved);

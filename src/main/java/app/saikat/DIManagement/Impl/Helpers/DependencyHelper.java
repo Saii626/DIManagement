@@ -25,6 +25,16 @@ public class DependencyHelper {
 
 	private static Logger logger = LogManager.getLogger(DependencyHelper.class);
 
+	/**
+	 * Scans and sets this bean's unresolved dependencies
+	 * <h3>Important</h3>
+	 * This also clears and sets the bean's dependency
+	 * in addition to returning them
+	 * @param <T> type of bean
+	 * @param target bean whose dependencies are to be found
+	 * @param results an object of {@link Results}
+	 * @return list of unresolved dependencies of this bean
+	 */
 	public static <T> List<DIBean<?>> scanAndSetDependencies(DIBeanImpl<T> target, Results results) {
 
 		Invokable<Object, T> invokable = target.getInvokable();
@@ -35,72 +45,98 @@ public class DependencyHelper {
 		if (!target.isMethod() || invokable.isStatic()) {
 			dependencies.add(null);
 		} else {
-			UnresolvedDIBeanImpl<?> parentBean = getUnresolvedBean(TypeToken.of(invokable.getDeclaringClass()),
-					Sets.newHashSet(invokable.getDeclaringClass().getAnnotations()), results.getQualifierAnnotations());
+			UnresolvedDIBeanImpl<?> parentBean = getUnresolvedBean(TypeToken.of(invokable.getDeclaringClass()), Sets
+					.newHashSet(invokable.getDeclaringClass()
+							.getAnnotations()), results.getQualifierAnnotations());
 
 			dependencies.add(parentBean);
 		}
 
 		parameters.forEach(param -> {
-			UnresolvedDIBeanImpl<?> unresolvedBean = getUnresolvedBean(param.getType(),
-					Sets.newHashSet(param.getAnnotations()), results.getQualifierAnnotations());
+			UnresolvedDIBeanImpl<?> unresolvedBean = getUnresolvedBean(param.getType(), Sets
+					.newHashSet(param.getAnnotations()), results.getQualifierAnnotations());
 
 			dependencies.add(unresolvedBean);
 		});
 
-		target.getDependencies().clear();
-		target.getDependencies().addAll(dependencies);
+		target.getDependencies()
+				.clear();
+		target.getDependencies()
+				.addAll(dependencies);
 		return dependencies;
 	}
 
+	/**
+	 * Resolves and sets this bean's dependencies
+	 * <h3>Important:</h3>
+	 * This also clears and sets the bean's dependencies
+	 * in addition to returning them
+	 * @param target bean whose dependencies are to be resolved
+	 * @param alreadyScanned collection of already scanned beans
+	 * @param toBeScanned collection of yet to be scanned beans
+	 * @return list of resolved dependencies of this bean
+	 * 
+	 */
 	public static List<DIBean<?>> resolveAndSetDependencies(DIBeanImpl<?> target, Collection<DIBean<?>> alreadyScanned,
 			Collection<DIBean<?>> toBeScanned) {
 
-		List<DIBean<?>> dependencies = target.getDependencies().stream().map(toResolve -> {
-			// Static methods will have 1st parameter as null
-			if (toResolve == null)
-				return null;
-				
-			logger.debug("Trying to resolve dependency {}", toResolve);
+		List<DIBean<?>> dependencies = target.getDependencies()
+				.stream()
+				.map(toResolve -> {
+					// Static methods will have 1st parameter as null
+					if (toResolve == null)
+						return null;
 
-			Set<DIBean<?>> resolvedDep = alreadyScanned.parallelStream()
-					.filter(b -> toResolve.getProviderType().isSupertypeOf(b.getProviderType())
-							&& b.getQualifier().equals(toResolve.getQualifier()))
-					.collect(Collectors.toSet());
+					logger.debug("Trying to resolve dependency {}", toResolve);
 
-			if (resolvedDep.size() > 1) {
-				throw new RuntimeException(
-						String.format("No unique bean resolved for %s. All possible resolutions are: %s",
-								toResolve.toString(), resolvedDep.toString()));
-			} else if (resolvedDep.size() == 1) {
-				DIBean<?> uniqueDep = resolvedDep.iterator().next();
-				logger.debug("Dependency {} resolved to {}", toResolve, uniqueDep);
-				return uniqueDep;
-			} else {
-				logger.debug("Not already scanned");
-				resolvedDep = toBeScanned.parallelStream()
-						.filter(b -> toResolve.getProviderType().isSupertypeOf(b.getProviderType())
-								&& b.getQualifier().equals(toResolve.getQualifier()))
-						.collect(Collectors.toSet());
+					Set<DIBean<?>> resolvedDep = alreadyScanned.parallelStream()
+							.filter(b -> toResolve.getProviderType()
+									.isSupertypeOf(b.getProviderType())
+									&& b.getQualifier()
+											.equals(toResolve.getQualifier()))
+							.collect(Collectors.toSet());
 
-				if (resolvedDep.size() > 1) {
-					throw new RuntimeException(
-							String.format("No unique bean resolved for %s. All possible resolutions are: %s",
-									toResolve.toString(), resolvedDep.toString()));
-				} else if (resolvedDep.size() == 1) {
-					DIBean<?> uniqueDep = resolvedDep.iterator().next();
-					logger.debug("Dependency {} resolved to {}", toResolve, uniqueDep);
-					return uniqueDep;
-				} else {
-					logger.debug("Not in currentbatch too. Hence no provider was found");
-					throw new RuntimeException(String.format("Unable to resolve dependency %s", toResolve.toString()));
-				}
-			}
+					if (resolvedDep.size() > 1) {
+						throw new RuntimeException(String
+								.format("No unique bean resolved for %s. All possible resolutions are: %s", toResolve
+										.toString(), resolvedDep.toString()));
+					} else if (resolvedDep.size() == 1) {
+						DIBean<?> uniqueDep = resolvedDep.iterator()
+								.next();
+						logger.debug("Dependency {} resolved to {}", toResolve, uniqueDep);
+						return uniqueDep;
+					} else {
+						logger.debug("Not already scanned");
+						resolvedDep = toBeScanned.parallelStream()
+								.filter(b -> toResolve.getProviderType()
+										.isSupertypeOf(b.getProviderType())
+										&& b.getQualifier()
+												.equals(toResolve.getQualifier()))
+								.collect(Collectors.toSet());
 
-		}).collect(Collectors.toList());
+						if (resolvedDep.size() > 1) {
+							throw new RuntimeException(String
+									.format("No unique bean resolved for %s. All possible resolutions are: %s", toResolve
+											.toString(), resolvedDep.toString()));
+						} else if (resolvedDep.size() == 1) {
+							DIBean<?> uniqueDep = resolvedDep.iterator()
+									.next();
+							logger.debug("Dependency {} resolved to {}", toResolve, uniqueDep);
+							return uniqueDep;
+						} else {
+							logger.debug("Not in currentbatch too. Hence no provider was found");
+							throw new RuntimeException(
+									String.format("Unable to resolve dependency %s", toResolve.toString()));
+						}
+					}
 
-		target.getDependencies().clear();
-		target.getDependencies().addAll(dependencies);
+				})
+				.collect(Collectors.toList());
+
+		target.getDependencies()
+				.clear();
+		target.getDependencies()
+				.addAll(dependencies);
 		return dependencies;
 
 	}
@@ -108,7 +144,8 @@ public class DependencyHelper {
 	private static UnresolvedDIBeanImpl<?> getUnresolvedBean(TypeToken<?> type, Set<Annotation> annotations,
 			Set<Class<? extends Annotation>> qualifierAnnotations) {
 
-		Set<Class<? extends Annotation>> annotationClasses = annotations.parallelStream().map(a -> a.annotationType())
+		Set<Class<? extends Annotation>> annotationClasses = annotations.parallelStream()
+				.map(a -> a.annotationType())
 				.collect(Collectors.toSet());
 
 		Class<? extends Annotation> q = getAnnotation(annotationClasses, qualifierAnnotations);
@@ -120,7 +157,10 @@ public class DependencyHelper {
 	private static Class<? extends Annotation> getAnnotation(Collection<Class<? extends Annotation>> annotations,
 			Collection<Class<? extends Annotation>> annotationsToSearch) {
 
-		return annotations.parallelStream().filter(a -> annotationsToSearch.contains(a)).findAny().orElse(null);
+		return annotations.parallelStream()
+				.filter(a -> annotationsToSearch.contains(a))
+				.findAny()
+				.orElse(null);
 
 	}
 }

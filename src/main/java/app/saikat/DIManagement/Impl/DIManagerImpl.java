@@ -39,19 +39,25 @@ public class DIManagerImpl extends DIManager {
 		ClasspathScanner scanner = new ClasspathScanner(results, helper);
 		scanner.scan(this, pathsToScan);
 
-		helper.getAllBeanManagers().parallelStream().forEach(DIBeanManager::scanComplete);
+		helper.getAllBeanManagers()
+				.parallelStream()
+				.forEach(DIBeanManager::scanComplete);
 
 		// Create providers first. Since the dependencies are resolved when the provider
 		// is actually invoked, there is no issue in creating providers first
 		createProviderBeans();
-		helper.getAllBeanManagers().parallelStream().forEach(DIBeanManager::providerCreated);
+		helper.getAllBeanManagers()
+				.parallelStream()
+				.forEach(DIBeanManager::providerCreated);
 
 		logger.info("All generated beans: {}", results.getGeneratedBeans());
 
 		// Resolving dependencies
 		resolveDependencies();
 
-		helper.getAllBeanManagers().parallelStream().forEach(DIBeanManager::dependencyResolved);
+		helper.getAllBeanManagers()
+				.parallelStream()
+				.forEach(DIBeanManager::dependencyResolved);
 
 	}
 
@@ -64,12 +70,14 @@ public class DIManagerImpl extends DIManager {
 		while (!toCreate.isEmpty()) {
 			DIBean<?> current = toCreate.poll();
 
-			if (!current.getBeanManager().shouldCreateProvider()) {
+			if (!current.getBeanManager()
+					.shouldCreateProvider()) {
 				logger.debug("Skipping creation on Provider for {} as shouldCreateProvider is false", current);
 				continue;
 			}
 
-			current.getBeanManager().createProviderBean(current);
+			current.getBeanManager()
+					.createProviderBean(current);
 		}
 	}
 
@@ -84,18 +92,20 @@ public class DIManagerImpl extends DIManager {
 
 		while (!toResolve.isEmpty()) {
 			DIBean<?> current = toResolve.poll();
-			if (!current.getBeanManager().shouldResolveDependency())
+			if (!current.getBeanManager()
+					.shouldResolveDependency())
 				continue;
 
-			current.getBeanManager().resolveDependencies(current, resolved, toResolve);
+			current.getBeanManager()
+					.resolveDependencies(current, resolved, toResolve);
 			resolved.add(current);
 		}
 	}
-	
+
 	// private List<DIBean<?>> getBuildListFor(DIBean<?> bean) {
 
 	@Override
-	@SuppressWarnings({"rawtypes", "unchecked"})
+	@SuppressWarnings({ "rawtypes", "unchecked" })
 	protected <T> Set<DIBean<T>> getBeanOfTypeUncached(Class<T> cls, Class<? extends Annotation> annot) {
 		TypeToken<T> type = TypeToken.of(cls);
 
@@ -105,16 +115,25 @@ public class DIManagerImpl extends DIManager {
 			return (q != null && q.equals(annot)) || (o != null && o.equals(annot));
 		};
 
-		Stream<DIBean<?>> annotBeans = results.getAnnotationBeans().parallelStream()
-				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
-		Stream<DIBean<?>> interfaceBeans = results.getInterfaceBeans().parallelStream()
-				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
-		Stream<DIBean<?>> superclassBeans = results.getSubclassBeans().parallelStream()
-				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
-		Stream<DIBean<?>> generatedBeans = results.getGeneratedBeans().parallelStream()
-				.filter(bean -> bean.getProviderType().isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+		Stream<DIBean<?>> annotBeans = results.getAnnotationBeans()
+				.parallelStream()
+				.filter(bean -> bean.getProviderType()
+						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+		Stream<DIBean<?>> interfaceBeans = results.getInterfaceBeans()
+				.parallelStream()
+				.filter(bean -> bean.getProviderType()
+						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+		Stream<DIBean<?>> superclassBeans = results.getSubclassBeans()
+				.parallelStream()
+				.filter(bean -> bean.getProviderType()
+						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
+		Stream<DIBean<?>> generatedBeans = results.getGeneratedBeans()
+				.parallelStream()
+				.filter(bean -> bean.getProviderType()
+						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
 
-		Set<DIBean<?>> beans = Stream.of(annotBeans, interfaceBeans, superclassBeans, generatedBeans).flatMap(s -> s)
+		Set<DIBean<?>> beans = Stream.of(annotBeans, interfaceBeans, superclassBeans, generatedBeans)
+				.flatMap(s -> s)
 				.collect(Collectors.toSet());
 		logger.debug("Added {} in cache", beans);
 

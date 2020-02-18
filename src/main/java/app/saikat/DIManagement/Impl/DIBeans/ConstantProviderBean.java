@@ -92,7 +92,7 @@ public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProv
 	public Class<?> getSuperClass() {
 		return null;
 	}
-	
+
 	@Override
 	public DIBeanType getBeanType() {
 		return DIBeanType.GENERATED;
@@ -115,8 +115,7 @@ public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProv
 			Class<? extends Annotation> t_qualifier = t.getQualifier();
 			Invokable<?, ?> t_invokable = t.getInvokable();
 
-			return (qualifier == null ? t_qualifier == null : qualifier.equals(t_qualifier))
-					&& t_invokable == null;
+			return (qualifier == null ? t_qualifier == null : qualifier.equals(t_qualifier)) && t_invokable == null;
 		}
 
 		return false;
@@ -127,6 +126,6 @@ public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProv
 		String qString = qualifier != null ? "@" + qualifier.getSimpleName() : "null";
 		String tString = getProviderType().toString();
 
-		return "c[" + qString  + ":" + tString + "]";
+		return "c[" + qString + ":" + tString + "]";
 	}
 }

@@ -75,7 +75,7 @@ public class Results {
 	public Set<DIBean<?>> getGeneratedBeans() {
 		return generatedBeans;
 	}
-	
+
 	public boolean isImmutable() {
 		return isImmutable;
 	}

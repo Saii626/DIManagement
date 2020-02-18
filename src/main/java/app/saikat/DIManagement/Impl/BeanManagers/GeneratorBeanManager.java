@@ -1,8 +1,10 @@
 package app.saikat.DIManagement.Impl.BeanManagers;
 
+import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +17,9 @@ import com.google.common.reflect.TypeParameter;
 import com.google.common.reflect.TypeToken;
 
 import app.saikat.Annotations.DIManagement.Generator;
+import app.saikat.Annotations.DIManagement.ScanAnnotation;
 import app.saikat.Annotations.DIManagement.GenParam;
+import app.saikat.Annotations.DIManagement.Generate;
 import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Impl.Helpers.DependencyHelper;
 import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
@@ -36,19 +40,24 @@ public class GeneratorBeanManager extends BeanManagerImpl {
 	}
 
 	@Override
+	public Map<Class<? extends Annotation>, ScanAnnotation> addAnnotationsToScan() {
+		return Collections.singletonMap(Generate.class, createScanAnnotationWithBeanManager(this.getClass()));
+	}
+
+	@Override
 	@SuppressWarnings({ "rawtypes", "serial", "unchecked" })
 	public <T> void beanCreated(DIBean<T> bean) {
 		super.beanCreated(bean);
 
 		if (!(bean instanceof DIBeanImpl<?>)) {
-			throw new RuntimeException(
-					String.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s",
-							bean.getClass().getSimpleName()));
+			throw new RuntimeException(String
+					.format("Wrorng bean type for Inject bean. Expected type DIBeanImpl.class found %s", bean.getClass()
+							.getSimpleName()));
 		}
 
-		TypeToken<Generator<T>> generatorTypeToken = new TypeToken<Generator<T>>() {
-		}.where(new TypeParameter<T>() {
-		}, bean.getProviderType().wrap());
+		TypeToken<Generator<T>> generatorTypeToken = new TypeToken<Generator<T>>() {}
+				.where(new TypeParameter<T>() {}, bean.getProviderType()
+						.wrap());
 
 		ConstantProviderBean<Generator<T>> genProvider = new ConstantProviderBean<>(generatorTypeToken,
 				bean.getQualifier());
@@ -61,9 +70,9 @@ public class GeneratorBeanManager extends BeanManagerImpl {
 			Collection<DIBean<?>> toBeResolved) {
 
 		if (!(target instanceof DIBeanImpl<?>)) {
-			throw new RuntimeException(String.format(
-					"Dont know how to resolve dependency of %s, as it is not instance of DIBeanImpl.class",
-					target.toString()));
+			throw new RuntimeException(String
+					.format("Dont know how to resolve dependency of %s, as it is not instance of DIBeanImpl.class", target
+							.toString()));
 		}
 
 		DIBeanImpl<T> t = (DIBeanImpl<T>) target;
@@ -72,16 +81,18 @@ public class GeneratorBeanManager extends BeanManagerImpl {
 		List<DIBean<?>> unresolvedDependencies = target.getDependencies();
 
 		List<DIBean<?>> generatorParams = new ArrayList<>();
-		List<Parameter> parameters = t.getInvokable().getParameters();
+		List<Parameter> parameters = t.getInvokable()
+				.getParameters();
 
 		for (int i = 0; i < parameters.size(); i++) {
-			if (parameters.get(i).getAnnotation(GenParam.class) != null)
+			if (parameters.get(i)
+					.getAnnotation(GenParam.class) != null)
 				generatorParams.add((unresolvedDependencies.set(i + 1, null)));
 		}
 
 		logger.debug("All dependencies to resolve {}", unresolvedDependencies);
-		List<DIBean<?>> resolvedDependencies = DependencyHelper.resolveAndSetDependencies(t, alreadyResolved,
-				toBeResolved);
+		List<DIBean<?>> resolvedDependencies = DependencyHelper
+				.resolveAndSetDependencies(t, alreadyResolved, toBeResolved);
 
 		// resolvedDependencies.stream().filter(dep -> dep != null).forEach(dep -> checkAndAddPair(t, dep));
 		// mutableGraph.addNode(t);

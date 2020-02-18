@@ -59,7 +59,8 @@ public class ProviderImpl<T> implements Provider<T> {
 						if (this.singletonInstance == null) {
 							try (BuildContext context = BuildContext.getBuildContext()) {
 								this.singletonInstance = this.createNewInstance();
-								this.bean.getBeanManager().newInstanceCreated(this.bean, this.singletonInstance);
+								this.bean.getBeanManager()
+										.newInstanceCreated(this.bean, this.singletonInstance);
 							}
 						}
 					}
@@ -69,7 +70,8 @@ public class ProviderImpl<T> implements Provider<T> {
 			} else {
 				try (BuildContext context = BuildContext.getBuildContext()) {
 					instanceToReturn = this.createNewInstance();
-					this.bean.getBeanManager().newInstanceCreated(this.bean, instanceToReturn);
+					this.bean.getBeanManager()
+							.newInstanceCreated(this.bean, instanceToReturn);
 				}
 			}
 		} catch (Exception e) {
@@ -94,29 +96,39 @@ public class ProviderImpl<T> implements Provider<T> {
 		Invokable<Object, T> underlyingExecutable = (Invokable<Object, T>) this.bean.getInvokable();
 		List<DIBean<?>> dependencies = this.bean.getDependencies();
 
-		List<Object> parameters = dependencies.stream().map(b -> b == null ? null : b.getProvider().get()).collect(Collectors.toList());
+		List<Object> parameters = dependencies.stream()
+				.map(b -> b == null ? null
+						: b.getProvider()
+								.get())
+				.collect(Collectors.toList());
 
-		T ret = underlyingExecutable.invoke(parameters.get(0), parameters.subList(1, parameters.size()).toArray());
+		T ret = underlyingExecutable.invoke(parameters.get(0), parameters.subList(1, parameters.size())
+				.toArray());
 		logger.info("Created new object {} for bean {}", ret, this.bean);
 
-		ConstantProviderBean<T> currentObjectProvider = new ConstantProviderBean<>(this.bean.getProviderType(), NoQualifier.class);
+		ConstantProviderBean<T> currentObjectProvider = new ConstantProviderBean<>(this.bean.getProviderType(),
+				NoQualifier.class);
 		currentObjectProvider.setProvider(() -> ret);
 
 		// Add setter injections to buildContext
 		InjectBeanManager manager = (InjectBeanManager) helper.getManagerOf(Inject.class);
 		Set<DIBean<?>> setterInjections = new HashSet<>(manager.getSetterInjectionsFor(bean));
 
-		setterInjections.parallelStream().map(b -> ((DIBeanImpl<?>) b).copy()).forEach(b -> {
-			b.getDependencies().set(0, currentObjectProvider);
-			BuildContext.addToSetterInjection(b);
-		});
+		setterInjections.parallelStream()
+				.map(b -> ((DIBeanImpl<?>) b).copy())
+				.forEach(b -> {
+					b.getDependencies()
+							.set(0, currentObjectProvider);
+					BuildContext.addToSetterInjection(b);
+				});
 
 		// Add postConstruct to buildcontext
 		PostConstructBeanManager pManager = (PostConstructBeanManager) helper.getManagerOf(PostConstruct.class);
 		DIBean<?> origPostBean = pManager.getPostConstructBean(bean);
 		if (origPostBean != null) {
-			DIBeanImpl<?> postConstructBean = ((DIBeanImpl<?>)origPostBean).copy();
-			postConstructBean.getDependencies().set(0, currentObjectProvider);
+			DIBeanImpl<?> postConstructBean = ((DIBeanImpl<?>) origPostBean).copy();
+			postConstructBean.getDependencies()
+					.set(0, currentObjectProvider);
 			BuildContext.addToPostConstruct(postConstructBean);
 		}
 		return ret;

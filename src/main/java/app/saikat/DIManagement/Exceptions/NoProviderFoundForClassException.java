@@ -1,6 +1,6 @@
 package app.saikat.DIManagement.Exceptions;
 
-public class NoProviderFoundForClassException extends RuntimeException{
+public class NoProviderFoundForClassException extends RuntimeException {
 
 	private static final long serialVersionUID = 1L;
 

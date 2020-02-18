@@ -44,7 +44,7 @@ public class BuildContext implements AutoCloseable {
 
 		if (data != null) {
 			logger.debug("Adding setter inject bean {} to build context", p);
-			
+
 			data.setterInject.add(p);
 		} else {
 			throw new NullPointerException("No build context created");
@@ -82,7 +82,8 @@ public class BuildContext implements AutoCloseable {
 			while (!queue.isEmpty()) {
 				DIBean<?> bean = queue.poll();
 				logger.debug("Invoking {}", bean);
-				bean.getProvider().get();
+				bean.getProvider()
+						.get();
 			}
 		};
 

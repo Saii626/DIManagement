@@ -21,12 +21,10 @@ public class NoOpBeanManager extends BeanManagerImpl {
 	}
 
 	@Override
-	public <T> void beanCreated(DIBean<T> bean) {
-	}
+	public <T> void beanCreated(DIBean<T> bean) {}
 
 	@Override
-	public void scanComplete() {
-	}
+	public void scanComplete() {}
 
 	@Override
 	public boolean shouldResolveDependency() {
@@ -50,7 +48,6 @@ public class NoOpBeanManager extends BeanManagerImpl {
 	}
 
 	@Override
-	public void newInstanceCreated(DIBean<?> bean, Object instance) {
-	}
+	public void newInstanceCreated(DIBean<?> bean, Object instance) {}
 
 }

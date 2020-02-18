@@ -1,14 +1,19 @@
 package app.saikat.DIManagement.Impl.BeanManagers;
 
+import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.annotation.PostConstruct;
+
 import com.google.common.reflect.TypeToken;
 
+import app.saikat.Annotations.DIManagement.ScanAnnotation;
 import app.saikat.DIManagement.Exceptions.NotValidBean;
 import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
@@ -25,10 +30,16 @@ public class PostConstructBeanManager extends BeanManagerImpl {
 	}
 
 	@Override
+	public Map<Class<? extends Annotation>, ScanAnnotation> addAnnotationsToScan() {
+		return Collections.singletonMap(PostConstruct.class, createScanAnnotationWithBeanManager(this.getClass()));
+	}
+
+	@Override
 	public <T> void beanCreated(DIBean<T> bean) {
 		super.beanCreated(bean);
 
-		if (!bean.getProviderType().equals(TypeToken.of(Void.TYPE))) {
+		if (!bean.getProviderType()
+				.equals(TypeToken.of(Void.TYPE))) {
 			throw new NotValidBean(bean, "PostConstruct should not return value");
 		}
 	}
@@ -37,7 +48,9 @@ public class PostConstructBeanManager extends BeanManagerImpl {
 	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
 			Collection<DIBean<?>> toBeResolved) {
 
-		if (target.getInvokable().getParameters().size() > 0) {
+		if (target.getInvokable()
+				.getParameters()
+				.size() > 0) {
 			throw new NotValidBean(target, "PostConstruct should not have parameters");
 		}
 

@@ -17,11 +17,11 @@ import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
 
 public class GeneratorImpl<T> implements Generator<T> {
-	
+
 	private final DIBeanImpl<T> partialBean;
 	private final List<DIBean<?>> generatorParams;
 	private final DIBeanManagerHelper helper;
-	
+
 	private Logger logger = LogManager.getLogger(this.getClass());
 
 	public GeneratorImpl(DIBeanImpl<T> bean, List<DIBean<?>> generatorParams, DIBeanManagerHelper helper) {
@@ -35,7 +35,11 @@ public class GeneratorImpl<T> implements Generator<T> {
 			return false;
 
 		for (int i = 0; i < args.length; i++) {
-			if (!generatorParams.get(i).getProviderType().wrap().isSupertypeOf(TypeToken.of(args[i].getClass()).wrap()))
+			if (!generatorParams.get(i)
+					.getProviderType()
+					.wrap()
+					.isSupertypeOf(TypeToken.of(args[i].getClass())
+							.wrap()))
 				return false;
 		}
 
@@ -50,17 +54,23 @@ public class GeneratorImpl<T> implements Generator<T> {
 
 		if (!validateInput(args)) {
 			StringBuilder builder = new StringBuilder("Wrong arguments provided for Generator<");
-			builder.append(partialBean.getProviderType().toString()).append(">.\n Required: ( ");
+			builder.append(partialBean.getProviderType()
+					.toString())
+					.append(">.\n Required: ( ");
 
-			generatorParams.forEach(param -> builder.append(param.getProviderType().toString()).append(", "));
-			builder.delete(builder.length()-2, builder.length());
+			generatorParams.forEach(param -> builder.append(param.getProviderType()
+					.toString())
+					.append(", "));
+			builder.delete(builder.length() - 2, builder.length());
 
 			builder.append(" ). Found: ( ");
 
 			for (Object object : args) {
-				builder.append(object.getClass().getSimpleName()).append(", ");
+				builder.append(object.getClass()
+						.getSimpleName())
+						.append(", ");
 			}
-			builder.delete(builder.length()-2, builder.length());
+			builder.delete(builder.length() - 2, builder.length());
 
 			builder.append(" )");
 
@@ -74,7 +84,8 @@ public class GeneratorImpl<T> implements Generator<T> {
 
 		for (Object obj : args) {
 			TypeToken.of(obj.getClass());
-			ConstantProviderBean<Object> providerBean = new ConstantProviderBean<>((TypeToken<Object>) TypeToken.of(obj.getClass()), NoQualifier.class);
+			ConstantProviderBean<Object> providerBean = new ConstantProviderBean<>(
+					(TypeToken<Object>) TypeToken.of(obj.getClass()), NoQualifier.class);
 			providerBean.setProvider(() -> obj);
 			dynamicParams.add(providerBean);
 		}

@@ -54,7 +54,8 @@ public abstract class DIManager {
 	 * @return set of beans which have the required qualifier annotation
 	 */
 	public Set<DIBean<?>> getBeansWithQualifierAnnotation(Class<? extends Annotation> annotation) {
-		return results.getAnnotationMap().get(annotation);
+		return results.getAnnotationMap()
+				.get(annotation);
 	}
 
 	/**
@@ -63,7 +64,8 @@ public abstract class DIManager {
 	 * @return set of beans which impletents the required interface
 	 */
 	public Set<DIBean<?>> getBeansOfInterface(Class<?> interfaceCls) {
-		return results.getInterfacesMap().get(interfaceCls);
+		return results.getInterfacesMap()
+				.get(interfaceCls);
 	}
 
 	/**
@@ -72,7 +74,8 @@ public abstract class DIManager {
 	 * @return set of beans which impletents the required superclass
 	 */
 	public Set<DIBean<?>> getBeansOfSuperClass(Class<?> superClass) {
-		return results.getSubClassesMap().get(superClass);
+		return results.getSubClassesMap()
+				.get(superClass);
 	}
 
 	// Cache results of annotaions
@@ -88,8 +91,10 @@ public abstract class DIManager {
 		if (!cachedAnnotationMap.containsKey(annotation)) {
 			synchronized (cachedAnnotationMap) {
 				if (!cachedAnnotationMap.containsKey(annotation)) {
-					Set<DIBean<?>> beans = results.getAnnotationBeans().parallelStream()
-							.filter(bean -> bean.getNonQualifierAnnotation().equals(annotation))
+					Set<DIBean<?>> beans = results.getAnnotationBeans()
+							.parallelStream()
+							.filter(bean -> bean.getNonQualifierAnnotation()
+									.equals(annotation))
 							.collect(Collectors.toSet());
 
 					cachedAnnotationMap.put(annotation, beans);
@@ -171,7 +176,8 @@ public abstract class DIManager {
 		Set<DIBean<T>> beans = getBeansOfType(cls, qualifier);
 
 		if (beans.size() == 1) {
-			return beans.iterator().next();
+			return beans.iterator()
+					.next();
 		} else {
 			throw new RuntimeException("No unique bean for " + cls.getSimpleName() + " found");
 		}
