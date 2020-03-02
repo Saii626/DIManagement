@@ -1,37 +1,29 @@
 package app.saikat.DIManagement.Test_8;
 
-import java.lang.ref.WeakReference;
+import java.lang.annotation.Annotation;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
-import app.saikat.DIManagement.Impl.BeanManagers.BeanManagerImpl;
-import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
+import javax.inject.Provider;
+
+import app.saikat.DIManagement.Impl.BeanManagers.InjectBeanManager;
+import app.saikat.DIManagement.Impl.BeanManagers.PostConstructBeanManager;
+import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.Results;
+import app.saikat.DIManagement.Interfaces.DIBeanManager;
 
-public class CustomBeanManager extends BeanManagerImpl {
-
-	public CustomBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
-			DIBeanManagerHelper helper) {
-		super(results, objectMap, helper);
-	}
-
-	@Override
-	public boolean shouldResolveDependency() {
-		return false;
-	}
+public class CustomBeanManager extends DIBeanManager {
 
 	@Override
 	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
-			Collection<DIBean<?>> toBeResolved) {
+			Collection<DIBean<?>> toBeResolved, Collection<Class<? extends Annotation>> allQualifiers) {
 		return null;
 	}
 
 	@Override
-	public boolean shouldCreateProvider() {
-		return false;
+	public <T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target,
+			InjectBeanManager injectBeanManager, PostConstructBeanManager postConstructBeanManager) {
+		return null;
 	}
 
 }

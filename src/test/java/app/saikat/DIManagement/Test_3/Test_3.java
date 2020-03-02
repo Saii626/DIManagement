@@ -12,6 +12,8 @@ import com.google.common.collect.Sets;
 
 import org.junit.Test;
 
+import com.google.common.reflect.TypeToken;
+
 import app.saikat.DIManagement.Interfaces.DIManager;
 
 /**
@@ -22,14 +24,14 @@ public class Test_3 {
 	@Test
 	public void test() {
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_3", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
+		manager.scan("app.saikat.DIManagement.Test_3", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
-		A a = manager.getBeansOfType(A.class).iterator().next().getProvider().get();
-		B b = manager.getBeansOfType(B.class).iterator().next().getProvider().get();
-		C c = manager.getBeansOfType(C.class).iterator().next().getProvider().get();
-		D d = manager.getBeansOfType(D.class).iterator().next().getProvider().get();
-		Provider<E> eProvider = manager.getBeansOfType(E.class).iterator().next().getProvider();
-		F f = manager.getBeansOfType(F.class).iterator().next().getProvider().get();
+		A a = manager.getBeansOfType(TypeToken.of(A.class)).iterator().next().getProvider().get();
+		B b = manager.getBeansOfType(TypeToken.of(B.class)).iterator().next().getProvider().get();
+		C c = manager.getBeansOfType(TypeToken.of(C.class)).iterator().next().getProvider().get();
+		D d = manager.getBeansOfType(TypeToken.of(D.class)).iterator().next().getProvider().get();
+		Provider<E> eProvider = manager.getBeansOfType(TypeToken.of(E.class)).iterator().next().getProvider();
+		F f = manager.getBeansOfType(TypeToken.of(F.class)).iterator().next().getProvider().get();
 
 		assertEquals("A.B vs B", a.getB(), b);
 		assertEquals("A.D vs D", a.getD(), d);
@@ -45,7 +47,7 @@ public class Test_3 {
 		assertTrue("Number of E instances", E.getNoOfInstances() == 3);
 
 		Set<Object> allInstances = manager.getObjectMap()
-				.get(manager.getBeansOfType(E.class).iterator().next()).parallelStream().map(o -> o.get())
+				.get(manager.getBeansOfType(TypeToken.of(E.class)).iterator().next()).parallelStream().map(o -> o.get())
 				.filter(o -> o != null).collect(Collectors.toSet());
 
 		Set<Object> expected = Sets.newHashSet(e1,e2,f.getE());

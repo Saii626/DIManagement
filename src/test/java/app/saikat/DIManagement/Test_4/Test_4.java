@@ -4,6 +4,8 @@ import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
 
+import com.google.common.reflect.TypeToken;
+
 import app.saikat.DIManagement.Interfaces.DIManager;
 
 /**
@@ -14,18 +16,18 @@ public class Test_4 {
 	@Test
 	public void test() {
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_4", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
+		manager.scan("app.saikat.DIManagement.Test_4", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
-		A a = manager.getBeansOfType(A.class).iterator().next().getProvider().get();
-		B b = manager.getBeansOfType(B.class, Q1.class).iterator().next().getProvider().get();
-		C c = manager.getBeansOfType(C.class).iterator().next().getProvider().get();
-		D d0 = manager.getBeansOfType(D.class).iterator().next().getProvider().get();
-		D d1 = manager.getBeansOfType(D.class, Q1.class).iterator().next().getProvider().get();
-		D d2 = manager.getBeansOfType(D.class, Q2.class).iterator().next().getProvider().get();
-		E e = manager.getBeansOfType(E.class).iterator().next().getProvider().get();
-		F f = manager.getBeansOfType(F.class, Q2.class).iterator().next().getProvider().get();
-		G g = manager.getBeansOfType(G.class).iterator().next().getProvider().get();
-		H h = manager.getBeansOfType(H.class).iterator().next().getProvider().get();
+		A a = manager.getBeansOfType(TypeToken.of(A.class)).iterator().next().getProvider().get();
+		B b = manager.getBeansOfType(TypeToken.of(B.class), Q1.class).iterator().next().getProvider().get();
+		C c = manager.getBeansOfType(TypeToken.of(C.class)).iterator().next().getProvider().get();
+		D d0 = manager.getBeansOfType(TypeToken.of(D.class)).iterator().next().getProvider().get();
+		D d1 = manager.getBeansOfType(TypeToken.of(D.class), Q1.class).iterator().next().getProvider().get();
+		D d2 = manager.getBeansOfType(TypeToken.of(D.class), Q2.class).iterator().next().getProvider().get();
+		E e = manager.getBeansOfType(TypeToken.of(E.class)).iterator().next().getProvider().get();
+		F f = manager.getBeansOfType(TypeToken.of(F.class), Q2.class).iterator().next().getProvider().get();
+		G g = manager.getBeansOfType(TypeToken.of(G.class)).iterator().next().getProvider().get();
+		H h = manager.getBeansOfType(TypeToken.of(H.class)).iterator().next().getProvider().get();
 
 		assertEquals("A.B vs B", a.getB(), b);
 		assertEquals("A.C vs C", a.getC(), c);

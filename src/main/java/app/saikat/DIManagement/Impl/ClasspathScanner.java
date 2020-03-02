@@ -14,23 +14,20 @@ import javax.inject.Qualifier;
 import javax.inject.Singleton;
 
 import com.google.common.collect.Sets;
-import com.google.common.reflect.TypeToken;
+import com.google.common.collect.Streams;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import app.saikat.Annotations.DIManagement.NoQualifier;
-import app.saikat.Annotations.DIManagement.ScanAnnotation;
-import app.saikat.Annotations.DIManagement.ScanInterface;
-import app.saikat.Annotations.DIManagement.ScanSubClass;
+import app.saikat.Annotations.DIManagement.Scan;
+import app.saikat.DIManagement.Exceptions.NoManagerFoundException;
 import app.saikat.DIManagement.Exceptions.NoValidConstructorFoundException;
-import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
+import app.saikat.DIManagement.Impl.Repository.Repository;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.DIBeanType;
-import app.saikat.DIManagement.Interfaces.Results;
-import app.saikat.PojoCollections.CommonObjects.Tuple;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.MethodInfo;
@@ -39,22 +36,12 @@ import io.github.classgraph.ScanResult;
 public class ClasspathScanner {
 
 	private Logger logger = LogManager.getLogger(this.getClass());
-	private final String SCAN_ANNOTATION = ScanAnnotation.class.getName();
-	private final String SCAN_INTERFACE = ScanInterface.class.getName();
-	private final String SCAN_SUBCLASS = ScanSubClass.class.getName();
+	private final String SCAN = Scan.class.getName();
 	private final String QUALIFIER_ANNOTATION = Qualifier.class.getName();
 	private final String SINGLETON_ANNOTATION = Singleton.class.getName();
 
-	private final DIBeanManagerHelper helper;
-	private final Results results;
-
-	public ClasspathScanner(Results results, DIBeanManagerHelper helper) {
-		this.helper = helper;
-		this.results = results;
-	}
-
-	@SuppressWarnings({ "unchecked", "serial" })
-	public void scan(DIManagerImpl manager, String... packagesToScan) {
+	@SuppressWarnings("unchecked")
+	public void scan(Repository currentRepo, Repository globalRepo, String... packagesToScan) {
 		try (ScanResult scanResult = new ClassGraph().enableClassInfo()
 				.enableMethodInfo()
 				.ignoreMethodVisibility()
@@ -67,102 +54,117 @@ public class ClasspathScanner {
 					.size());
 
 			// Create DIBeanManagers first
-			Set<Class<? extends DIBeanManager>> beanManagers = scanResult
-					.getClassesImplementing(DIBeanManager.class.getName())
+			Set<Class<? extends DIBeanManager>> beanManagers = scanResult.getSubclasses(DIBeanManager.class.getName())
 					.parallelStream()
 					.map(c -> (Class<? extends DIBeanManager>) c.loadClass())
+					.filter(c -> !globalRepo.getBeanManagers()
+							.keySet()
+							.contains(c))
 					.collect(Collectors.toSet());
 
 			logger.debug("Bean Managers: {}", beanManagers);
-			helper.createBeanManagers(beanManagers);
 
-			// Add annotations, interfaces, subclasses to scan as given by beanManager
-			helper.getAllBeanManagers()
+			// Add BeanManagers to currentRepo and set their Repo pointer
+			currentRepo.addBeanManagers(DIBeanManagerHelper.createBeanManagers(beanManagers));
+			currentRepo.getBeanManagers()
+					.values()
 					.parallelStream()
-					.forEach(mgr -> {
-						mgr.addAnnotationsToScan()
-								.entrySet()
-								.parallelStream()
-								.forEach(e -> results.addAnnotationToScan(e.getKey(), e.getValue()));
-						mgr.addInterfacessToScan()
-								.entrySet()
-								.parallelStream()
-								.forEach(e -> results.addnterfaceToScan(e.getKey(), e.getValue()));
-						mgr.addSubClassesToScan()
-								.entrySet()
-								.parallelStream()
-								.forEach(e -> results.addSuperClassToScan(e.getKey(), e.getValue()));
-					});
+					.forEach(bm -> bm.setRepo(currentRepo));
 
-			// Add a bean of DIManager. Anyone can ask for an instance of DIManager
-			TypeToken<DIManagerImpl> managerProviderToken = new TypeToken<DIManagerImpl>() {};
-			ConstantProviderBean<DIManagerImpl> managerBean = new ConstantProviderBean<>(managerProviderToken,
-					NoQualifier.class);
-			managerBean.setProvider(() -> manager);
-			results.addGeneratedBean(managerBean);
+			// Add annotations, interfaces, subclasses to scan as given by beanManager created by this scan cycle
+			currentRepo.getBeanManagers()
+					.entrySet()
+					.parallelStream()
+					.forEach(entry -> currentRepo.addScanMap(entry.getValue()
+							.addToScan()));
+
 
 			// Scan for other annotations
-			Tuple<Set<String>, Set<String>> metaAnnotations = scanMetaAnnotations(scanResult);
+			scanForScanAnnotations(scanResult, currentRepo);
 
-			scanAnnotations(scanResult, metaAnnotations.first, metaAnnotations.second);
-			scanInterfaces(scanResult, metaAnnotations.first, metaAnnotations.second);
-			scanSubclasses(scanResult, metaAnnotations.first, metaAnnotations.second);
+			Set<Class<?>> toBeScanned = Streams.concat(currentRepo.getScanData()
+					.keySet()
+					.parallelStream(), globalRepo.getScanData()
+							.keySet()
+							.parallelStream())
+					.collect(Collectors.toSet());
 
+			logger.info("All @Qualifier annotations: {}", currentRepo.getQualifierAnnotations());
+			logger.info("All Non @Qualifier annotations to scan: {}", currentRepo.getScanData()
+					.keySet());
+
+			Set<String> qualifierAnnotations = Streams.concat(currentRepo.getQualifierAnnotations()
+					.parallelStream()
+					.map(a -> a.getName()), globalRepo.getQualifierAnnotations()
+							.parallelStream()
+							.map(a -> a.getName()))
+					.collect(Collectors.toSet());
+
+			Set<String> otherAnnotations = toBeScanned.parallelStream()
+					.map(s -> s.getName())
+					.collect(Collectors.toSet());
+
+			scanAnnotations(scanResult, qualifierAnnotations, otherAnnotations, currentRepo, globalRepo);
+
+			// Scan for interfaces
+			scanInterfaces(scanResult, qualifierAnnotations, otherAnnotations, toBeScanned, currentRepo, globalRepo);
+			scanSubclasses(scanResult, qualifierAnnotations, otherAnnotations, toBeScanned, currentRepo, globalRepo);
+
+			logger.debug("All created beans: {}", currentRepo.getBeans());
 		}
 	}
 
 	@SuppressWarnings("unchecked")
-	private Tuple<Set<String>, Set<String>> scanMetaAnnotations(ScanResult scanResults) {
-
+	private void scanForScanAnnotations(ScanResult scanResults, Repository repo) {
+		logger.info("Scanning for @Scan annotations");
 		// Scan for annotations
 		Set<ClassInfo> allAnnotations = Sets.newHashSet(scanResults.getAllAnnotations());
 
-		logger.debug("Begining annotation scan");
 		allAnnotations.parallelStream()
 				.forEach(annot -> {
 					logger.trace("Scanning annotation: {}", annot.getSimpleName());
 
-					if (annot.hasAnnotation(SCAN_ANNOTATION)) {
-						logger.trace("Non qualifier annotation found {}", annot.getSimpleName());
+					if (annot.hasAnnotation(SCAN)) {
 						Class<? extends Annotation> annotation = (Class<? extends Annotation>) annot.loadClass();
-						ScanAnnotation scanAnnotation = annotation.getAnnotation(ScanAnnotation.class);
-						results.addAnnotationToScan(annotation, scanAnnotation);
+						Scan scanAnnotation = annotation.getAnnotation(Scan.class);
+						repo.addScanData(annotation, scanAnnotation);
 
 					} else if (annot.hasAnnotation(QUALIFIER_ANNOTATION)) {
-						logger.trace("Qualifier annotation found {}", annot.getSimpleName());
 						Class<? extends Annotation> annotation = (Class<? extends Annotation>) annot.loadClass();
-						results.addQualifierToScan(annotation);
+						repo.addQualifierAnnotation(annotation);
 					}
 				});
+		logger.debug("Annotation scan complete.");
 
-		logger.debug("Annotation scan complete");
-
-		Set<String> qualifierAnnotations = results.getQualifierAnnotations()
+		scanResults.getAllInterfaces()
 				.parallelStream()
-				.map(a -> a.getName())
-				.collect(Collectors.toSet());
-		Set<String> otherAnnotations = results.getAnnotationsToScan()
-				.keySet()
+				.filter(cls -> cls.hasAnnotation(SCAN))
+				.map(cls -> cls.loadClass())
+				.forEach(cls -> repo.addScanData(cls, cls.getAnnotation(Scan.class)));
+		logger.debug("interface scan complete");
+
+		scanResults.getAllClasses()
 				.parallelStream()
-				.map(e -> e.getName())
-				.collect(Collectors.toSet());
-
-		logger.info("All @Qualifier annotations: {}", qualifierAnnotations);
-		logger.info("All Non @Qualifier annotations to scan: {}", otherAnnotations);
-
-		return Tuple.of(qualifierAnnotations, otherAnnotations);
+				.filter(cls -> cls.hasAnnotation(SCAN) && !cls.isInterface() && !cls.isAnnotation())
+				.map(cls -> cls.loadClass())
+				.filter(cls -> cls.getAnnotation(Scan.class) != null && !cls.isInterface() && !cls.isAnnotation())
+				.forEach(cls -> {
+					logger.debug("Adding scan data for: {}", cls);
+					repo.addScanData(cls, cls.getAnnotation(Scan.class));
+				});
+		logger.debug("Superclass scan complete");
 	}
 
 	@SuppressWarnings("unchecked")
-	private void scanAnnotations(ScanResult scanResults, Set<String> qualifierAnnotations,
-			Set<String> otherAnnotations) {
+	private void scanAnnotations(ScanResult scanResults, Set<String> qualifierAnnotations, Set<String> otherAnnotations,
+			Repository currentRepo, Repository globalRepo) {
 
-		logger.debug("Begining scan for annotation beans");
 		Set<ClassInfo> allClasses = Sets.newHashSet(scanResults.getAllClasses());
 
 		allClasses.parallelStream()
 				.forEach(cls -> {
-					logger.trace("Scanning {} for annotations", cls.getSimpleName());
+					ClassInfo otherAnnot = getAnnotation(cls.getAnnotations(), otherAnnotations);
+					// logger.debug("Scanning {}\n for annotations: {}\nother annotations:{}\nother Annot:{}", cls.getSimpleName(), cls.getAnnotations(), otherAnnotations, otherAnnot);
 					Set<DIBeanImpl<?>> consBeans = new HashSet<>();
 
 					// Scanning mehods
@@ -170,13 +172,13 @@ public class ClasspathScanner {
 							.parallelStream()
 							.forEach(meth -> {
 								logger.trace("Scanning method {} for annotations", meth.getName());
-								DIBeanImpl<?> methBean = createMethodBean(meth, qualifierAnnotations, otherAnnotations, null, false, DIBeanType.ANNOTATION);
+								DIBeanImpl<?> methBean = createMethodBean(meth, qualifierAnnotations, otherAnnotations, DIBeanType.ANNOTATION, currentRepo, globalRepo);
 
 								if (methBean != null) {
-									logger.debug("Adding method {} as annotation bean with beanManager: {}", meth
-											.getName(), methBean, methBean.getBeanManager()
-													.getClass()
-													.getSimpleName());
+									logger.debug("Adding methodBean {} as with beanManager: {}", methBean, methBean
+											.getBeanManager()
+											.getClass()
+											.getSimpleName());
 
 									methBean.getBeanManager()
 											.beanCreated(methBean);
@@ -187,20 +189,18 @@ public class ClasspathScanner {
 							});
 					logger.trace("Methods scan complete");
 
-					ClassInfo otherAnnot = getAnnotation(cls.getAnnotations(), otherAnnotations);
 					if (otherAnnot != null) {
 						Class<? extends Annotation> o = (Class<? extends Annotation>) otherAnnot.loadClass();
 						if (o.equals(Singleton.class)) {
-							logger.debug("Class {} is marked singleton", cls);
-
 							if (consBeans.size() == 0) {
 								logger.debug("No constructor bean already exists. Creating one");
-								DIBeanImpl<?> bean = createClassBean(cls, qualifierAnnotations, otherAnnotations, Singleton.class, true, DIBeanType.ANNOTATION);
+								DIBeanImpl<?> bean = createClassBean(cls, qualifierAnnotations, otherAnnotations, Singleton.class, true, DIBeanType.ANNOTATION, currentRepo, globalRepo);
 
 								logger.debug("Adding {} as annotation bean with beanManager: {}", bean, bean
 										.getBeanManager()
 										.getClass()
 										.getSimpleName());
+
 								bean.getBeanManager()
 										.beanCreated(bean);
 							} else {
@@ -209,13 +209,15 @@ public class ClasspathScanner {
 										.forEach(b -> b.setSingleton(true));
 							}
 						} else {
-							DIBeanImpl<?> bean = createClassBean(cls, qualifierAnnotations, otherAnnotations, null, false, DIBeanType.ANNOTATION);
+							logger.debug("Creating bean for class {} with non qualifier: {}", cls.getSimpleName(), otherAnnot);
+							DIBeanImpl<?> bean = createClassBean(cls, qualifierAnnotations, otherAnnotations, null, false, DIBeanType.ANNOTATION, currentRepo, globalRepo);
 
 							if (bean != null) {
 								logger.debug("Adding {} as annotation bean with beanManager: {}", bean, bean
 										.getBeanManager()
 										.getClass()
 										.getSimpleName());
+
 								bean.getBeanManager()
 										.beanCreated(bean);
 							}
@@ -226,36 +228,20 @@ public class ClasspathScanner {
 
 		logger.debug("Scan for annotation beans complete");
 
-		logger.info("All annotation beans created: {}", results.getAnnotationBeans());
 	}
 
-	private void scanInterfaces(ScanResult scanResults, Set<String> qualifierAnnotations,
-			Set<String> otherAnnotations) {
+	private void scanInterfaces(ScanResult scanResults, Set<String> qualifierAnnotations, Set<String> otherAnnotations,
+			Set<Class<?>> interfaces, Repository currentRepo, Repository globalRepo) {
 
-		logger.debug("Begining scan for interfaces");
-		scanResults.getAllInterfaces()
-				.parallelStream()
-				.filter(cls -> cls.hasAnnotation(SCAN_INTERFACE))
-				.map(cls -> cls.loadClass())
-				.forEach(cls -> {
-					logger.trace("ScanInterface {} found", cls.getSimpleName());
-					results.addnterfaceToScan(cls, cls.getAnnotation(ScanInterface.class));
-				});
-		logger.debug("Scan for interfaces complete");
-
-		logger.info("All interfaces: {}", results.getInterfacesToScan());
-
-		logger.debug("Begining scan for interface beans");
-		results.getInterfacesToScan()
-				.keySet()
-				.parallelStream()
+		interfaces.parallelStream()
+				.filter(i -> i.isInterface() && !i.isAnnotation())
 				.forEach(item -> {
 					logger.trace("Scanning for classes implementing {} interface", item.getSimpleName());
 
 					scanResults.getClassesImplementing(item.getName())
 							.parallelStream()
 							.map(clsInfo -> {
-								DIBeanImpl<?> bean = createClassBean(clsInfo, qualifierAnnotations, otherAnnotations, item, true, DIBeanType.INTERFACE);
+								DIBeanImpl<?> bean = createClassBean(clsInfo, qualifierAnnotations, otherAnnotations, item, true, DIBeanType.INTERFACE, currentRepo, globalRepo);
 								logger.debug("Found class {} implementing {}", clsInfo.getSimpleName(), item
 										.getSimpleName());
 								logger.debug("Adding {} as interface bean with beanManager: {}", bean, bean
@@ -269,35 +255,19 @@ public class ClasspathScanner {
 				});
 
 		logger.debug("Scan for interface beans complete");
-
-		logger.info("All interface beans created: {}", results.getInterfaceBeans());
 	}
 
-	private void scanSubclasses(ScanResult scanResults, Set<String> qualifierAnnotations,
-			Set<String> otherAnnotations) {
+	private void scanSubclasses(ScanResult scanResults, Set<String> qualifierAnnotations, Set<String> otherAnnotations,
+			Set<Class<?>> superclasses, Repository currentRepo, Repository globalRepo) {
 
-		logger.debug("Begining scan for super classes");
-		scanResults.getAllClasses()
-				.parallelStream()
-				.filter(cls -> cls.hasAnnotation(SCAN_SUBCLASS))
-				.map(cls -> cls.loadClass())
-				.forEach(cls -> {
-					logger.trace("ScanSubClass {} found", cls.getSimpleName());
-					results.addSuperClassToScan(cls, cls.getAnnotation(ScanSubClass.class));
-				});
-		logger.debug("Scan for super classes complete");
-
-		logger.debug("Begining scan for subclass beans");
-		results.getSuperClassesToScan()
-				.keySet()
-				.parallelStream()
+		superclasses.parallelStream()
 				.forEach(item -> {
 					logger.trace("Scanning for classes extending {}", item.getSimpleName());
 
 					scanResults.getSubclasses(item.getName())
 							.parallelStream()
 							.map(clsInfo -> {
-								DIBeanImpl<?> bean = createClassBean(clsInfo, qualifierAnnotations, otherAnnotations, item, true, DIBeanType.SUBCLASS);
+								DIBeanImpl<?> bean = createClassBean(clsInfo, qualifierAnnotations, otherAnnotations, item, true, DIBeanType.SUBCLASS, currentRepo, globalRepo);
 								logger.debug("Found class {} extending {}", clsInfo.getSimpleName(), item
 										.getSimpleName());
 								logger.debug("Adding {} as subclass bean with beanManager: {}", bean, bean
@@ -311,13 +281,11 @@ public class ClasspathScanner {
 				});
 
 		logger.debug("Scan for subclass beans complete");
-
-		logger.info("All subclass beans scanned: {}", results.getSubclassBeans());
 	}
 
 	@SuppressWarnings("unchecked")
 	private DIBeanImpl<?> createClassBean(ClassInfo cls, Set<String> qualifierAnnotations, Set<String> otherAnnotations,
-			Class<?> superClass, boolean forceCreate, DIBeanType type) {
+			Class<?> superClass, boolean forceCreate, DIBeanType type, Repository curentRepo, Repository globalRepo) {
 
 		logger.trace("Creating bean for class {}", cls);
 		ClassInfo qualifierAnnot = getAnnotation(cls.getAnnotations(), qualifierAnnotations);
@@ -359,16 +327,21 @@ public class ClasspathScanner {
 			logger.trace("Using constructor: {}", toUse.getName());
 			toUse.setAccessible(true);
 
-			DIBeanManager beanManager = helper.getManagerOf(o);
-			return new DIBeanImpl<>(toUse, q, o, superClass, cls.hasAnnotation(SINGLETON_ANNOTATION), beanManager,
-					type);
+			try {
+				DIBeanManager beanManager = DIBeanManagerHelper.getManagerOf(o, curentRepo, globalRepo);
+				return new DIBeanImpl<>(toUse, q, o, superClass, cls.hasAnnotation(SINGLETON_ANNOTATION), beanManager,
+						type);
+			} catch (NoManagerFoundException e) {
+				logger.error("Error: ", e);
+				return null;
+			}
 		}
 		return null;
 	}
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private DIBeanImpl<?> createMethodBean(MethodInfo meth, Set<String> qualifierAnnotations,
-			Set<String> otherAnnotations, Class<?> superclass, boolean forceCreate, DIBeanType type) {
+			Set<String> otherAnnotations, DIBeanType type, Repository curentRepo, Repository globalRepo) {
 
 		logger.trace("Creating bean for method {}", meth);
 		Set<ClassInfo> annotations = meth.getAnnotationInfo()
@@ -380,12 +353,10 @@ public class ClasspathScanner {
 
 		ClassInfo otherAnnots = getAnnotation(annotations, otherAnnotations);
 
-		if (qualifierAnnot != null || otherAnnots != null || forceCreate) {
+		if (qualifierAnnot != null || otherAnnots != null) {
 			if (logger.isTraceEnabled()) {
-				logger.trace("Qualifier annotation: {}, non qualifier annotaions: {}, forceCreate: {}", qualifierAnnot == null
-						? "null"
-						: qualifierAnnot.getSimpleName(), otherAnnots == null ? "null"
-								: otherAnnots.getSimpleName(), forceCreate);
+				logger.trace("Qualifier annotation: {}, non qualifier annotaions: {}", qualifierAnnot == null ? "null"
+						: qualifierAnnot.getSimpleName(), otherAnnots == null ? "null" : otherAnnots.getSimpleName());
 			}
 			Class<? extends Annotation> q = qualifierAnnot != null
 					? (Class<? extends Annotation>) qualifierAnnot.loadClass()
@@ -404,18 +375,20 @@ public class ClasspathScanner {
 					Constructor<?> c = null;
 
 					for (Constructor<?> constructor : cons) {
-						BiFunction<Class<? extends Annotation>, Set<Class<? extends Annotation>>, Boolean> hasAnnot = (
-								annot, set) -> {
+						BiFunction<Class<? extends Annotation>, Set<Class<?>>, Boolean> hasAnnot = (annot, set) -> {
 							if (annot == null) {
-								return getAnnotation(Sets.newHashSet(constructor.getAnnotations()), set) == null;
+								return getAnnotation(Sets.newHashSet(constructor.getAnnotations()), (Set) set) == null;
 							} else {
 								return constructor.getAnnotation(annot) != null;
 							}
 						};
 
-						if (hasAnnot.apply(o, results.getAnnotationsToScan()
-								.keySet())
-								&& (hasAnnot.apply(q, results.getQualifierAnnotations())
+						if ((hasAnnot.apply(o, curentRepo.getScanData()
+								.keySet()) || hasAnnot
+										.apply(o, globalRepo.getScanData()
+												.keySet()))
+								&& ((hasAnnot.apply(q, (Set) curentRepo.getQualifierAnnotations())
+										|| hasAnnot.apply(o, (Set) globalRepo.getQualifierAnnotations()))
 										|| q.equals(NoQualifier.class))) {
 							if (c == null) {
 								c = constructor;
@@ -433,9 +406,8 @@ public class ClasspathScanner {
 
 					c.setAccessible(true);
 
-					DIBeanManager beanManager = helper.getManagerOf(o);
-					return new DIBeanImpl<>(c, q, o, superclass, meth.hasAnnotation(SINGLETON_ANNOTATION), beanManager,
-							type);
+					DIBeanManager beanManager = DIBeanManagerHelper.getManagerOf(o, curentRepo, globalRepo);
+					return new DIBeanImpl<>(c, q, o, null, meth.hasAnnotation(SINGLETON_ANNOTATION), beanManager, type);
 
 				} catch (Exception e) {
 					logger.error("Error:", e);
@@ -446,10 +418,14 @@ public class ClasspathScanner {
 			Method m = meth.loadClassAndGetMethod();
 			m.setAccessible(true);
 
-			DIBeanManager beanManager = helper.getManagerOf(o);
-			DIBeanImpl<?> bean = new DIBeanImpl<>(m, q, o, superclass, meth.hasAnnotation(SINGLETON_ANNOTATION),
-					beanManager, type);
-			return bean;
+			try {
+				DIBeanManager beanManager = DIBeanManagerHelper.getManagerOf(o, curentRepo, globalRepo);
+				return new DIBeanImpl<>(m, q, o, null, meth.hasAnnotation(SINGLETON_ANNOTATION), beanManager, type);
+
+			} catch (NoManagerFoundException e) {
+				logger.error("Error: ", e);
+				return null;
+			}
 		}
 		return null;
 	}

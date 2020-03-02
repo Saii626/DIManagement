@@ -1,24 +1,15 @@
 package app.saikat.DIManagement.Impl.BeanManagers;
 
-import java.lang.ref.WeakReference;
+import java.lang.annotation.Annotation;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import javax.inject.Provider;
 
 import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
-import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.Results;
 
 public class NoOpBeanManager extends BeanManagerImpl {
-
-	public NoOpBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
-			DIBeanManagerHelper helper) {
-		super(results, objectMap, helper);
-	}
 
 	@Override
 	public <T> void beanCreated(DIBean<T> bean) {}
@@ -33,7 +24,7 @@ public class NoOpBeanManager extends BeanManagerImpl {
 
 	@Override
 	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
-			Collection<DIBean<?>> toBeResolved) {
+			Collection<DIBean<?>> toBeResolved, Collection<Class<? extends Annotation>> allQualifiers) {
 		return null;
 	}
 
@@ -43,7 +34,8 @@ public class NoOpBeanManager extends BeanManagerImpl {
 	}
 
 	@Override
-	public <T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target) {
+	public <T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target,
+			InjectBeanManager injectBeanManager, PostConstructBeanManager postConstructBeanManager) {
 		return null;
 	}
 

@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
 import javax.inject.Provider;
 
 import com.google.common.reflect.Invokable;
@@ -21,7 +19,6 @@ import app.saikat.DIManagement.Impl.BeanManagers.InjectBeanManager;
 import app.saikat.DIManagement.Impl.BeanManagers.PostConstructBeanManager;
 import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
-import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
 
 public class ProviderImpl<T> implements Provider<T> {
@@ -32,13 +29,15 @@ public class ProviderImpl<T> implements Provider<T> {
 	// Pointer to parent bean
 	private final DIBeanImpl<T> bean;
 
-	private final DIBeanManagerHelper helper;
+	private final InjectBeanManager injectBeanManager;
+	private final PostConstructBeanManager postConstructBeanManager;
 
 	private Logger logger = LogManager.getLogger(Provider.class);
 
-	public ProviderImpl(DIBeanImpl<T> bean, DIBeanManagerHelper helper) {
+	public ProviderImpl(DIBeanImpl<T> bean, InjectBeanManager injectBeanManager, PostConstructBeanManager postConstructBeanManager) {
 		this.bean = bean;
-		this.helper = helper;
+		this.injectBeanManager = injectBeanManager;
+		this.postConstructBeanManager = postConstructBeanManager;
 	}
 
 	@Override
@@ -83,14 +82,6 @@ public class ProviderImpl<T> implements Provider<T> {
 		return instanceToReturn;
 	}
 
-	// private T build()
-	// 		throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-	// 		T t = this.createNewInstance();
-	// 		return t;
-	// 	}
-
-	// }
-
 	private T createNewInstance()
 			throws InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
 		Invokable<Object, T> underlyingExecutable = (Invokable<Object, T>) this.bean.getInvokable();
@@ -104,18 +95,17 @@ public class ProviderImpl<T> implements Provider<T> {
 
 		T ret = underlyingExecutable.invoke(parameters.get(0), parameters.subList(1, parameters.size())
 				.toArray());
-		logger.info("Created new object {} for bean {}", ret, this.bean);
+		logger.debug("Created new object {}", ret);
 
 		ConstantProviderBean<T> currentObjectProvider = new ConstantProviderBean<>(this.bean.getProviderType(),
 				NoQualifier.class);
 		currentObjectProvider.setProvider(() -> ret);
 
 		// Add setter injections to buildContext
-		InjectBeanManager manager = (InjectBeanManager) helper.getManagerOf(Inject.class);
-		Set<DIBean<?>> setterInjections = new HashSet<>(manager.getSetterInjectionsFor(bean));
+		Set<DIBean<?>> setterInjections = new HashSet<>(injectBeanManager.getSetterInjectionsFor(bean));
 
 		setterInjections.parallelStream()
-				.map(b -> ((DIBeanImpl<?>) b).copy())
+				.map(b -> b.copy())
 				.forEach(b -> {
 					b.getDependencies()
 							.set(0, currentObjectProvider);
@@ -123,8 +113,7 @@ public class ProviderImpl<T> implements Provider<T> {
 				});
 
 		// Add postConstruct to buildcontext
-		PostConstructBeanManager pManager = (PostConstructBeanManager) helper.getManagerOf(PostConstruct.class);
-		DIBean<?> origPostBean = pManager.getPostConstructBean(bean);
+		DIBean<?> origPostBean = postConstructBeanManager.getPostConstructBean(bean);
 		if (origPostBean != null) {
 			DIBeanImpl<?> postConstructBean = ((DIBeanImpl<?>) origPostBean).copy();
 			postConstructBean.getDependencies()
@@ -138,29 +127,4 @@ public class ProviderImpl<T> implements Provider<T> {
 	public String toString() {
 		return "p" + bean.toString();
 	}
-
-	// Dependency list of methods have 1st element as the on object on which to invoke the method
-	// private Tuple<Provider<?>[], boolean[]> extractProviders(List<DIBean<?>> dependencies,
-	// 		List<Class<?>> parameterTypes) {
-
-	// 	Provider<?>[] providers = new Provider[dependencies.size()];
-	// 	boolean[] provider = new boolean[dependencies.size()];
-
-	// 	int shift;
-	// 	if (bean.get().containsRight()) {
-	// 		shift = 1;
-	// 		DIBean<?> parent = dependencies.get(0);
-	// 		providers[0] = parent != null ? parent.getProvider() : null;
-	// 		provider[0] = false;
-	// 	} else {
-	// 		shift = 0;
-	// 	}
-
-	// 	for (int i = shift; i < providers.length; i++) {
-	// 		providers[i] = dependencies.get(i).getProvider();
-	// 		provider[i] = parameterTypes.get(i - shift).equals(Provider.class);
-	// 	}
-
-	// 	return Tuple.of(providers, provider);
-	// }
 }

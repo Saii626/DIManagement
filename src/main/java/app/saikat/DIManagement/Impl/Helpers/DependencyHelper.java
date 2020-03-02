@@ -19,7 +19,6 @@ import app.saikat.Annotations.DIManagement.NoQualifier;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Impl.DIBeans.UnresolvedDIBeanImpl;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.Results;
 
 public class DependencyHelper {
 
@@ -32,10 +31,11 @@ public class DependencyHelper {
 	 * in addition to returning them
 	 * @param <T> type of bean
 	 * @param target bean whose dependencies are to be found
-	 * @param results an object of {@link Results}
+	 * @param qualifierAnnotations list of all qualifier annotations to scan
 	 * @return list of unresolved dependencies of this bean
 	 */
-	public static <T> List<DIBean<?>> scanAndSetDependencies(DIBeanImpl<T> target, Results results) {
+	public static <T> List<DIBean<?>> scanAndSetDependencies(DIBeanImpl<T> target,
+			Collection<Class<? extends Annotation>> qualifierAnnotations) {
 
 		Invokable<Object, T> invokable = target.getInvokable();
 		List<Parameter> parameters = invokable.getParameters();
@@ -47,14 +47,14 @@ public class DependencyHelper {
 		} else {
 			UnresolvedDIBeanImpl<?> parentBean = getUnresolvedBean(TypeToken.of(invokable.getDeclaringClass()), Sets
 					.newHashSet(invokable.getDeclaringClass()
-							.getAnnotations()), results.getQualifierAnnotations());
+							.getAnnotations()), qualifierAnnotations);
 
 			dependencies.add(parentBean);
 		}
 
 		parameters.forEach(param -> {
 			UnresolvedDIBeanImpl<?> unresolvedBean = getUnresolvedBean(param.getType(), Sets
-					.newHashSet(param.getAnnotations()), results.getQualifierAnnotations());
+					.newHashSet(param.getAnnotations()), qualifierAnnotations);
 
 			dependencies.add(unresolvedBean);
 		});
@@ -125,8 +125,9 @@ public class DependencyHelper {
 							return uniqueDep;
 						} else {
 							logger.debug("Not in currentbatch too. Hence no provider was found");
-							throw new RuntimeException(
-									String.format("Unable to resolve dependency %s", toResolve.toString()));
+							throw new RuntimeException(String
+									.format("Unable to resolve dependency %s. Already scanned: %s, toBeScanned: %s", toResolve
+											.toString(), alreadyScanned.toString(), toBeScanned.toString()));
 						}
 					}
 
@@ -142,7 +143,7 @@ public class DependencyHelper {
 	}
 
 	private static UnresolvedDIBeanImpl<?> getUnresolvedBean(TypeToken<?> type, Set<Annotation> annotations,
-			Set<Class<? extends Annotation>> qualifierAnnotations) {
+			Collection<Class<? extends Annotation>> qualifierAnnotations) {
 
 		Set<Class<? extends Annotation>> annotationClasses = annotations.parallelStream()
 				.map(a -> a.annotationType())

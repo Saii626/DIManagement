@@ -5,7 +5,10 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import com.google.common.reflect.TypeToken;
+
 import app.saikat.Annotations.DIManagement.Generator;
+import app.saikat.DIManagement.Exceptions.BeanNotFoundException;
 import app.saikat.DIManagement.Interfaces.DIManager;
 
 /**
@@ -14,15 +17,15 @@ import app.saikat.DIManagement.Interfaces.DIManager;
 public class Test_16 {
 
 	@Test
-	public void test() {
+	public void test() throws BeanNotFoundException {
 
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_16", "app.saikat.DIManagement.Annotations",
+		manager.scan("app.saikat.DIManagement.Test_16", "app.saikat.DIManagement.Annotations",
 				"app.saikat.DIManagement.Impl.BeanManagers");
 
-		B b = manager.getBeanOfType(B.class).getProvider().get();
-		D d = manager.getBeanOfType(D.class).getProvider().get();
-		E e = manager.getBeanOfType(E.class).getProvider().get();
+		B b = manager.getBeanOfType(TypeToken.of(B.class)).getProvider().get();
+		D d = manager.getBeanOfType(TypeToken.of(D.class)).getProvider().get();
+		E e = manager.getBeanOfType(TypeToken.of(E.class)).getProvider().get();
 
 		assertTrue("d.q1 vs q1", d.getQ1() == 100);
 		assertTrue("d.q2 vs q2", d.getQ2() == 200);

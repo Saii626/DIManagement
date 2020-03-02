@@ -11,7 +11,9 @@ import com.google.common.reflect.TypeToken;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public interface DIBean<T> {
+import app.saikat.PojoCollections.CommonObjects.Copyable;
+
+public interface DIBean<T> extends Copyable<DIBean<T>> {
 
 	/**
 	 * Common logger for DIBean

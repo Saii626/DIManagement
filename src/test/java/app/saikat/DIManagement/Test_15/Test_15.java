@@ -6,6 +6,9 @@ import javax.inject.Provider;
 
 import org.junit.Test;
 
+import com.google.common.reflect.TypeToken;
+
+import app.saikat.DIManagement.Exceptions.BeanNotFoundException;
 import app.saikat.DIManagement.Interfaces.DIManager;
 
 /**
@@ -14,18 +17,18 @@ import app.saikat.DIManagement.Interfaces.DIManager;
 public class Test_15 {
 
 	@Test
-	public void test() {
+	public void test() throws BeanNotFoundException {
 
 		DIManager manager = DIManager.newInstance();
-		manager.initialize("app.saikat.DIManagement.Test_15", "app.saikat.DIManagement.Annotations",
+		manager.scan("app.saikat.DIManagement.Test_15", "app.saikat.DIManagement.Annotations",
 				"app.saikat.DIManagement.Impl.BeanManagers");
 
-		B b = manager.getBeanOfType(B.class).getProvider().get();
-		C c = manager.getBeanOfType(C.class).getProvider().get();
-		D d = manager.getBeanOfType(D.class).getProvider().get();
-		E e = manager.getBeanOfType(E.class).getProvider().get();
-		G g = manager.getBeanOfType(G.class).getProvider().get();
-		H h = manager.getBeanOfType(H.class).getProvider().get();
+		B b = manager.getBeanOfType(TypeToken.of(B.class)).getProvider().get();
+		C c = manager.getBeanOfType(TypeToken.of(C.class)).getProvider().get();
+		D d = manager.getBeanOfType(TypeToken.of(D.class)).getProvider().get();
+		E e = manager.getBeanOfType(TypeToken.of(E.class)).getProvider().get();
+		G g = manager.getBeanOfType(TypeToken.of(G.class)).getProvider().get();
+		H h = manager.getBeanOfType(TypeToken.of(H.class)).getProvider().get();
 
 		A<B, C, E> t1 = g.getT1();
 		A<E, B, C> t2 = g.getT2();

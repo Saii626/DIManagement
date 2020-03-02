@@ -11,17 +11,17 @@ import com.google.common.reflect.Invokable;
 import com.google.common.reflect.TypeToken;
 
 import app.saikat.DIManagement.Interfaces.DIBeanType;
-import app.saikat.PojoCollections.CommonObjects.Copyable;
 import app.saikat.Annotations.DIManagement.NoQualifier;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
 
-public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProviderBean<T>> {
+public class ConstantProviderBean<T> implements DIBean<T> {
 
 	private final Class<? extends Annotation> qualifier;
 	private final TypeToken<T> type;
 
 	private Provider<T> provider;
+	private DIBeanManager beanManager;
 
 	// @SuppressWarnings("serial")
 	// public ConstantProviderBean(T object, Class<? extends Annotation> qualifierAnnotation) {
@@ -40,6 +40,7 @@ public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProv
 		this.type = type;
 		this.qualifier = qualifierAnnotation;
 		this.provider = null;
+		this.beanManager = null;
 	}
 
 	@Override
@@ -51,6 +52,10 @@ public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProv
 
 	public void setProvider(Provider<T> provider) {
 		this.provider = provider;
+	}
+
+	public void setManager(DIBeanManager manager) {
+		this.beanManager = manager;
 	}
 
 	@Override
@@ -85,7 +90,7 @@ public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProv
 
 	@Override
 	public DIBeanManager getBeanManager() {
-		return null;
+		return this.beanManager;
 	}
 
 	@Override
@@ -111,11 +116,11 @@ public class ConstantProviderBean<T> implements DIBean<T>, Copyable<ConstantProv
 	@Override
 	public boolean equals(Object obj) {
 		if (obj instanceof ConstantProviderBean) {
-			DIBean<?> t = (DIBean<?>) obj;
+			ConstantProviderBean<?> t = (ConstantProviderBean<?>) obj;
 			Class<? extends Annotation> t_qualifier = t.getQualifier();
-			Invokable<?, ?> t_invokable = t.getInvokable();
+			TypeToken<?> t_type = t.getProviderType();
 
-			return (qualifier == null ? t_qualifier == null : qualifier.equals(t_qualifier)) && t_invokable == null;
+			return (qualifier == null ? t_qualifier == null : qualifier.equals(t_qualifier)) && type.equals(t_type);
 		}
 
 		return false;

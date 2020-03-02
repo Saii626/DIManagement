@@ -4,6 +4,8 @@ import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
+import com.google.common.reflect.TypeToken;
+
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIManager;
@@ -18,9 +20,9 @@ public class Test_8 {
 
 		DIManager manager = DIManager.newInstance();
 
-		manager.initialize("app.saikat.DIManagement.Test_8", "app.saikat.Annotations.DIManagement", "app.saikat.DIManagement.Impl.BeanManagers");
+		manager.scan("app.saikat.DIManagement.Test_8", "app.saikat.Annotations.DIManagement", "app.saikat.DIManagement.Impl.BeanManagers");
 
-		DIBean<A> bean = manager.getBeansOfType(A.class).iterator().next();
+		DIBean<A> bean = manager.getBeansOfType(TypeToken.of(A.class)).iterator().next();
 
 		DIBeanImpl<A> b = (DIBeanImpl<A>) bean;
 

@@ -5,9 +5,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import app.saikat.Annotations.DIManagement.ScanAnnotation;
+import app.saikat.Annotations.DIManagement.Scan;
 
-@ScanAnnotation(beanManager = CustomBeanManager.class)
+@Scan(beanManager = CustomBeanManager.class)
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.TYPE, ElementType.PARAMETER})
 public @interface Annot_1 {

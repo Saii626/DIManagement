@@ -1,69 +1,84 @@
 package app.saikat.DIManagement.Interfaces;
 
 import java.lang.annotation.Annotation;
+import java.lang.ref.WeakReference;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.inject.Provider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import app.saikat.Annotations.DIManagement.ScanAnnotation;
-import app.saikat.Annotations.DIManagement.ScanInterface;
-import app.saikat.Annotations.DIManagement.ScanSubClass;
+import app.saikat.Annotations.DIManagement.Scan;
+import app.saikat.PojoCollections.Utils.CommonFunc;
+
+/*------------------ Imports to impl --------------------*/
+import app.saikat.DIManagement.Impl.BeanManagers.InjectBeanManager;
+import app.saikat.DIManagement.Impl.BeanManagers.PostConstructBeanManager;
 import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
+import app.saikat.DIManagement.Impl.Repository.Repository;
+/*------------------ Imports to impl --------------------*/
 
-public interface DIBeanManager {
+public abstract class DIBeanManager {
 
-	Logger logger = LogManager.getLogger(DIBeanManager.class);
-
-	/**
-	 * Adds an annotation to scan. This does not mean that no other bean can
-	 * have this as their {@link DIBeanManager}. An annotation can explicitly
-	 * its DIBeanManager when annotated with {@link ScanAnnotation}
-	 * @return a map of annotation and scanSnnotation whose beans should be
-	 * maintained by this class
-	 */
-	Map<Class<? extends Annotation>, ScanAnnotation> addAnnotationsToScan();
+	protected Logger logger = LogManager.getLogger(DIBeanManager.class);
 
 	/**
-	 * Adds an interface to scan. This does not mean that no other bean can
-	 * have this as their {@link DIBeanManager}. An annotation can explicitly
-	 * its DIBeanManager when annotated with {@link ScanInterface}
-	 * @return a map of interface and scanInterface whose beans should be
-	 * maintained by this class
+	 * Object to repository. Initially this repository is localRepo. After successful
+	 * merging of the localRepo, this is replaced with globalRepo pointer
 	 */
-	Map<Class<?>, ScanInterface> addInterfacessToScan();
+	protected Repository repo = null;
 
 	/**
-	 * Adds an superclass to scan. This does not mean that no other bean can
-	 * have this as their {@link DIBeanManager}. An annotation can explicitly
-	 * its DIBeanManager when annotated with {@link ScanSubClass}
-	 * @return a map of superclass and scanSubClass whose beans should be
-	 * maintained by this class
+	 * This pointer is initially this is null. After successful merging of the localRepo,
+	 * this is replaced with the actual objcetMap.
 	 */
-	Map<Class<?>, ScanSubClass> addSubClassesToScan();
+	protected Map<DIBean<?>, Set<WeakReference<?>>> objectMap = null;
+
+	public void setRepo(Repository repo) {
+		this.repo = repo;
+	}
+
+	public void setObjectMap(Map<DIBean<?>, Set<WeakReference<?>>> objectMap) {
+		this.objectMap = objectMap;
+	}
+
+	/**
+	 * Adds annotations / interfaces / superclasses to scan. This does not mean that
+	 * no other bean can have this as their {@link DIBeanManager}. An annotation
+	 * can explicitly its DIBeanManager when annotated with {@link Scan}
+	 * @return a map of cls and Scan which should be scanned
+	 */
+	public Map<Class<?>, Scan> addToScan() {
+		return Collections.emptyMap();
+	}
 
 	/**
 	 * Callback called after a bean has been created
 	 * @param <T> type of bean created
 	 * @param bean bean that has been created
 	 */
-	<T> void beanCreated(DIBean<T> bean);
+	public <T> void beanCreated(DIBean<T> bean) {
+		this.repo.addBean(bean);
+	}
 
 	/**
 	 * Callback called after all scan has been done. Create additional beans in this
 	 * if necessary
 	 */
-	void scanComplete();
+	public void scanComplete() {}
 
 	/**
 	 * If dependenies of the bean scould be scanned and resolved
 	 * @return true if the bean should be scanned and resolved, else false
 	 */
-	boolean shouldResolveDependency();
+	public boolean shouldResolveDependency() {
+		return false;
+	}
 
 	/**
 	 * Method called to scan and resolve dependencies of the target bean. This also
@@ -72,39 +87,69 @@ public interface DIBeanManager {
 	 * @param target the bean whose dependencies need to be resolved
 	 * @param alreadyResolved collection of already resolved beans
 	 * @param toBeResolved collection of yet to be resolved beans
+	 * @param allQualifiers collection of all qualifier annotaions. Contains qualifiers
+	 * from both, the globalRepo and localRepo
 	 * @return list of resolved dependencies of the bean
 	 */
-	<T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
-			Collection<DIBean<?>> toBeResolved);
+	public abstract <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
+			Collection<DIBean<?>> toBeResolved, Collection<Class<? extends Annotation>> allQualifiers);
 
 	/**
 	 * Callback called after all dependencies of beans have been resolved
 	 */
-	void dependencyResolved();
+	public void dependencyResolved() {}
 
 	/**
 	 * If provider of the bean scould be scanned and resolved
 	 * @return true if the bean should be scanned and resolved, else false
 	 */
-	boolean shouldCreateProvider();
+	public boolean shouldCreateProvider() {
+		return false;
+	}
 
 	/**
 	 * Method called to create provider bean.
 	 * @param <T> type of object returned by provider
 	 * @param target the bean whose provider needs to be created
+	 * @param injectBeanManager an instance of injectBeanManager. Used to execute setterInjections
+	 * @param postConstructBeanManager an instance of postConstructBeanManager. Used to execute
+	 * postConstruct
 	 * @return providerBean for target bean
 	 */
-	<T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target);
+	public abstract <T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target,
+			InjectBeanManager injectBeanManager, PostConstructBeanManager postConstructBeanManager);
 
 	/**
 	 * Callback called after all providers are created
 	 */
-	void providerCreated();
+	public void providerCreated() {}
 
 	/**
 	 * Callback called when provider of the bean is executed
 	 * @param bean the bean whose provider was executed
 	 * @param instance the new instance created as a result of the operation
 	 */
-	void newInstanceCreated(DIBean<?> bean, Object instance);
+	public void newInstanceCreated(DIBean<?> bean, Object instance) {
+		CommonFunc.addToMapSet(this.objectMap, bean, new WeakReference<>(instance));
+	}
+
+	/**
+	 * Helper method to create a Scan object with current class as BeanManager
+	 * @return Scan object with current class as BeanManager
+	 */
+	protected Scan createScanObject() {
+		DIBeanManager current = this;
+
+		return new Scan() {
+			@Override
+			public Class<? extends Annotation> annotationType() {
+				return Scan.class;
+			}
+
+			@Override
+			public Class<?>[] beanManager() {
+				return new Class<?>[] { current.getClass() };
+			}
+		};
+	}
 }

@@ -15,9 +15,8 @@ import com.google.common.reflect.TypeToken;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.DIBeanType;
-import app.saikat.PojoCollections.CommonObjects.Copyable;
 
-public class DIBeanImpl<T> implements DIBean<T>, Copyable<DIBeanImpl<T>> {
+public class DIBeanImpl<T> implements DIBean<T> {
 
 	// Annotations
 	private final Class<? extends Annotation> qualifier;

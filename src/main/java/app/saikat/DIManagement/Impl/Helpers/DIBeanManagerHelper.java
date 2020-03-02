@@ -1,27 +1,20 @@
 package app.saikat.DIManagement.Impl.Helpers;
 
-import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Function;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import app.saikat.Annotations.DIManagement.ScanAnnotation;
-import app.saikat.Annotations.DIManagement.ScanInterface;
-import app.saikat.Annotations.DIManagement.ScanSubClass;
-import app.saikat.DIManagement.Impl.BeanManagers.NoOpBeanManager;
-import app.saikat.DIManagement.Interfaces.DIBean;
+import app.saikat.Annotations.DIManagement.Scan;
+import app.saikat.DIManagement.Exceptions.NoManagerFoundException;
+import app.saikat.DIManagement.Impl.Repository.Repository;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
-import app.saikat.DIManagement.Interfaces.Results;
 
 /**
  * Helper class of DIBeanManager s. Creates and stores all instances of beanmanagers,
@@ -29,26 +22,20 @@ import app.saikat.DIManagement.Interfaces.Results;
  */
 public class DIBeanManagerHelper {
 
-	private final Results results;
-	private final Map<DIBean<?>, Set<WeakReference<?>>> map;
+	private static Logger logger = LogManager.getLogger(DIBeanManagerHelper.class);
 
-	private Map<Class<? extends DIBeanManager>, DIBeanManager> beanManagers = new ConcurrentHashMap<>();
-
-	private Logger logger = LogManager.getLogger(DIBeanManagerHelper.class);
-
-	public DIBeanManagerHelper(Results results, Map<DIBean<?>, Set<WeakReference<?>>> map) {
-		this.results = results;
-		this.map = map;
-	}
-
-	public void createBeanManagers(Set<Class<? extends DIBeanManager>> managers) {
-
-		managers.parallelStream()
+	/**
+	 * Instantiate all {@link DIBeanManager} classes provided
+	 * @param managers DIBeanManager classes which needs to be instantiated
+	 * @return instantiated collection of DIBeanManagers'
+	 */
+	public static Collection<DIBeanManager> createBeanManagers(Collection<Class<? extends DIBeanManager>> managers) {
+		return managers.parallelStream()
 				.filter(m -> !Modifier.isInterface(m.getModifiers()) && !Modifier.isAbstract(m.getModifiers()))
 				.map(b -> {
 					try {
-						DIBeanManager manager = b.getConstructor(Results.class, Map.class, DIBeanManagerHelper.class)
-								.newInstance(results, map, this);
+						DIBeanManager manager = b.getConstructor()
+								.newInstance();
 
 						logger.debug("Created new instance of {}: {}", b.getSimpleName(), manager);
 						return manager;
@@ -59,46 +46,54 @@ public class DIBeanManagerHelper {
 					return null;
 				})
 				.filter(Objects::nonNull)
-				.forEach(m -> beanManagers.put(m.getClass(), m));
+				.collect(Collectors.toSet());
 	}
 
+	/**
+	 * Gets the manager of a class. The cls is either a non qualifier, interface or superclass
+	 * @param cls the class whose manager is being queried
+	 * @param currentScanRepo the current scan repo. This is temporary repo. If no problem occurs,
+	 * will be merged back to globalRepo after scanning
+	 * @param globalRepo the global repo containing all already scanned objects
+	 * @return manager of the cls. currentScanRepo is checked first before checking globalRepo
+	 * @throws NoManagerFoundException exception is thrown when no DIBeanManager is found for the requested cls
+	 */
 	@SuppressWarnings("unchecked")
-	public DIBeanManager getManagerOf(Class<?> cls) {
-		BiFunction<Object, Function<Object, Class<?>[]>, Class<? extends DIBeanManager>> getBeanManager = (o,
-				managerGetter) -> {
-			if (o == null)
+	public static DIBeanManager getManagerOf(Class<?> cls, Repository currentScanRepo, Repository globalRepo)
+			throws NoManagerFoundException {
+		if (cls == null)
+			return null;
+
+		Function<Repository, DIBeanManager> managerGetter = repo -> {
+			Scan scan = repo.getScanData()
+					.get(cls);
+
+			if (scan == null)
 				return null;
-			Class<?>[] managerClasses = managerGetter.apply(o);
+			Class<?>[] managerClasses = scan.beanManager();
+
 			if (managerClasses.length == 0 || managerClasses.length > 1)
 				return null;
 
 			Class<?> managerClass = managerClasses[0];
 
-			return (managerClass == null || !DIBeanManager.class.isAssignableFrom(managerClass)) ? null
-					: (Class<? extends DIBeanManager>) managerClass;
+			if (managerClass == null || !DIBeanManager.class.isAssignableFrom(managerClass))
+				return null;
+
+			return repo.getBeanManagers()
+					.get((Class<? extends DIBeanManager>) managerClass);
+
 		};
 
-		Class<? extends DIBeanManager> mgr = getBeanManager.apply(results.getAnnotationsToScan()
-				.get(cls), m -> ((ScanAnnotation) m).beanManager());
-		if (mgr != null)
-			return beanManagers.get(mgr);
+		DIBeanManager mgr = managerGetter.apply(currentScanRepo);
+		if (mgr == null)
+			mgr = managerGetter.apply(globalRepo);
 
-		mgr = getBeanManager.apply(results.getInterfacesToScan()
-				.get(cls), m -> ((ScanInterface) m).beanManager());
-		if (mgr != null)
-			return beanManagers.get(mgr);
+		if (mgr == null) {
+			throw new NoManagerFoundException(cls);
+		}
 
-		mgr = getBeanManager.apply(results.getSuperClassesToScan()
-				.get(cls), m -> ((ScanSubClass) m).beanManager());
-		return beanManagers.get(mgr == null ? NoOpBeanManager.class : mgr);
-	}
+		return mgr;
 
-	@SuppressWarnings("unchecked")
-	public <T extends DIBeanManager> T getManagerOfType(Class<? extends DIBeanManager> cls) {
-		return (T) beanManagers.get(cls);
-	}
-
-	public Collection<DIBeanManager> getAllBeanManagers() {
-		return this.beanManagers.values();
 	}
 }

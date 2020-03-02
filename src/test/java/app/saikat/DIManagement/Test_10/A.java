@@ -3,7 +3,9 @@ package app.saikat.DIManagement.Test_10;
 import javax.annotation.PostConstruct;
 import javax.inject.Singleton;
 
+import app.saikat.DIManagement.Exceptions.BeanNotFoundException;
 import app.saikat.DIManagement.Interfaces.DIManager;
+import com.google.common.reflect.TypeToken;
 
 @Singleton
 public class A {
@@ -15,17 +17,18 @@ public class A {
 	private C cInstance;
 	private D dInstance;
 
-	public A(DIManager manager) {
+	public A(DIManager manager) throws BeanNotFoundException {
 		this.manager = manager;
 
-		bInstance = manager.getBeanOfType(B.class).getProvider().get();
-		cInstance = manager.getBeanOfType(C.class).getProvider().get();
-		dInstance = manager.getBeanOfType(D.class).getProvider().get();
+		bInstance = manager.getBeanOfType(TypeToken.of(B.class)).getProvider().get();
+		cInstance = manager.getBeanOfType(TypeToken.of(C.class)).getProvider().get();
+		dInstance = manager.getBeanOfType(TypeToken.of(D.class)).getProvider().get();
+
 	}
 
 	@PostConstruct
-	public void postConstruct() {
-		aInstance = manager.getBeanOfType(A.class).getProvider().get();
+	public void postConstruct() throws BeanNotFoundException {
+		aInstance = manager.getBeanOfType(TypeToken.of(A.class)).getProvider().get();
 	}
 	
 	public DIManager getManager() {

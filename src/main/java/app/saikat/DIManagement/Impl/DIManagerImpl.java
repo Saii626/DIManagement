@@ -1,71 +1,122 @@
 package app.saikat.DIManagement.Impl;
 
 import java.lang.annotation.Annotation;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
+import com.google.common.collect.Streams;
 import com.google.common.reflect.TypeToken;
 
-import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
+import app.saikat.Annotations.DIManagement.NoQualifier;
+import app.saikat.DIManagement.Impl.BeanManagers.InjectBeanManager;
+import app.saikat.DIManagement.Impl.BeanManagers.PostConstructBeanManager;
+import app.saikat.DIManagement.Impl.DIBeans.ConstantProviderBean;
+import app.saikat.DIManagement.Impl.Repository.Repository;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIBeanManager;
 import app.saikat.DIManagement.Interfaces.DIManager;
 
 public class DIManagerImpl extends DIManager {
 
-	// Data structures
-	// private MutableGraph<DIBean<?>> mutableGraph;
+	private boolean isInitialScan = true;
 
-	private DIBeanManagerHelper helper;
-
-	// public DIManagerImpl() {
-	// mutableGraph = GraphBuilder.directed().allowsSelfLoops(false).build();
-	// }
-
-	@Override
-	public void initialize(String... pathsToScan) {
-
+	@SuppressWarnings("serial")
+	public DIManagerImpl() {
 		logger.info("Initializing DIManager");
-		helper = new DIBeanManagerHelper(results, objectMap);
 
-		// Scanning
-		logger.info("Starting scans");
-		ClasspathScanner scanner = new ClasspathScanner(results, helper);
-		scanner.scan(this, pathsToScan);
+		// Add a bean of DIManager, DIBeanManagerHelper and Results. Anyone can ask for an instance of them
+		TypeToken<DIManagerImpl> managerProviderToken = new TypeToken<DIManagerImpl>() {};
+		ConstantProviderBean<DIManagerImpl> managerBean = new ConstantProviderBean<>(managerProviderToken,
+				NoQualifier.class);
+		managerBean.setProvider(() -> this);
 
-		helper.getAllBeanManagers()
-				.parallelStream()
-				.forEach(DIBeanManager::scanComplete);
+		TypeToken<Repository> repoToken = new TypeToken<Repository>() {};
+		ConstantProviderBean<Repository> repoBean = new ConstantProviderBean<>(repoToken, NoQualifier.class);
+		repoBean.setProvider(() -> repository);
 
-		// Create providers first. Since the dependencies are resolved when the provider
-		// is actually invoked, there is no issue in creating providers first
-		createProviderBeans();
-		helper.getAllBeanManagers()
-				.parallelStream()
-				.forEach(DIBeanManager::providerCreated);
+		this.repository.addBean(managerBean);
+		this.repository.addBean(repoBean);
 
-		logger.info("All generated beans: {}", results.getGeneratedBeans());
-
-		// Resolving dependencies
-		resolveDependencies();
-
-		helper.getAllBeanManagers()
-				.parallelStream()
-				.forEach(DIBeanManager::dependencyResolved);
-
+		logger.info("Initial beans added");
 	}
 
-	private void createProviderBeans() {
+	@Override
+	public void scan(String... pathsToScan) {
+		try {
+			Repository currentScanRepo = new Repository();
+
+			// Scanning
+			logger.info("Scanning {}", Arrays.toString(pathsToScan));
+
+			ClasspathScanner scanner = new ClasspathScanner();
+			scanner.scan(currentScanRepo, repository, pathsToScan);
+
+			currentScanRepo.getBeanManagers()
+					.values()
+					.parallelStream()
+					.forEach(DIBeanManager::scanComplete);
+
+			// Create providers first. Since the dependencies are resolved when the provider
+			// is actually invoked, there is no issue in creating providers first
+			Repository r = isInitialScan ? currentScanRepo : repository;
+			InjectBeanManager injectBeanManager = r.getBeanManagerOfType(InjectBeanManager.class);
+			PostConstructBeanManager postConstructBeanManager = r.getBeanManagerOfType(PostConstructBeanManager.class);
+			createProviderBeans(currentScanRepo.getBeans(), injectBeanManager, postConstructBeanManager);
+
+			currentScanRepo.getBeanManagers()
+					.values()
+					.parallelStream()
+					.forEach(DIBeanManager::providerCreated);
+
+			logger.debug("Beans and their providers: {}", currentScanRepo.getBeans());
+
+			// Resolving dependencies
+			Collection<Class<? extends Annotation>> allQualifiers = Streams
+					.concat(currentScanRepo.getQualifierAnnotations()
+							.parallelStream(), repository.getQualifierAnnotations()
+									.parallelStream())
+					.collect(Collectors.toSet());
+			resolveDependencies(currentScanRepo, repository, allQualifiers);
+
+			currentScanRepo.getBeanManagers()
+					.values()
+					.parallelStream()
+					.forEach(DIBeanManager::dependencyResolved);
+
+			logger.info("All created beans: {}", currentScanRepo.getBeans());
+
+			// All scanning and beanCreation is successful. Update pointers
+			// of DIBeanManagers' and merge to globalRepo
+			currentScanRepo.getBeanManagers()
+					.values()
+					.parallelStream()
+					.forEach(mgr -> {
+						mgr.setRepo(repository);
+						mgr.setObjectMap(objectMap);
+					});
+			repository.merge(currentScanRepo);
+
+			logger.info("Paths {} scanned successfully", Arrays.toString(pathsToScan));
+			isInitialScan = false;
+
+		} catch (Exception e) {
+			logger.error("Error while scanning ", e);
+			logger.error("unloading {}", Arrays.toString(pathsToScan));
+			throw e;
+		}
+	}
+
+	private void createProviderBeans(Collection<DIBean<?>> beans, InjectBeanManager injectBeanManager,
+			PostConstructBeanManager postConstructBeanManager) {
+		logger.info("Creating providers");
 		Queue<DIBean<?>> toCreate = new LinkedList<>();
-		toCreate.addAll(results.getAnnotationBeans());
-		toCreate.addAll(results.getInterfaceBeans());
-		toCreate.addAll(results.getSubclassBeans());
+		toCreate.addAll(beans);
+
+		logger.debug("{} provider beans need to be created", toCreate);
 
 		while (!toCreate.isEmpty()) {
 			DIBean<?> current = toCreate.poll();
@@ -76,82 +127,35 @@ public class DIManagerImpl extends DIManager {
 				continue;
 			}
 
+			logger.debug("Creating provider for: {}", current);
 			current.getBeanManager()
-					.createProviderBean(current);
+					.createProviderBean(current, injectBeanManager, postConstructBeanManager);
 		}
 	}
 
-	private void resolveDependencies() {
+	private void resolveDependencies(Repository currentScanRepo, Repository globalRepo,
+			Collection<Class<? extends Annotation>> allQualifiers) {
+
+		logger.info("Resolving dependencies");
 		Queue<DIBean<?>> toResolve = new LinkedList<>();
-		toResolve.addAll(results.getAnnotationBeans());
-		toResolve.addAll(results.getInterfaceBeans());
-		toResolve.addAll(results.getSubclassBeans());
+		toResolve.addAll(currentScanRepo.getBeans());
 
 		Collection<DIBean<?>> resolved = new HashSet<>();
-		resolved.addAll(results.getGeneratedBeans());
+		resolved.addAll(globalRepo.getBeans());
 
 		while (!toResolve.isEmpty()) {
 			DIBean<?> current = toResolve.poll();
-			if (!current.getBeanManager()
-					.shouldResolveDependency())
+			if (current.getBeanManager() == null || !current.getBeanManager()
+					.shouldResolveDependency()) {
+				resolved.add(current);
 				continue;
+			}
+
+			logger.debug("resolving dependency of: {}", current);
 
 			current.getBeanManager()
-					.resolveDependencies(current, resolved, toResolve);
+					.resolveDependencies(current, resolved, toResolve, allQualifiers);
 			resolved.add(current);
 		}
 	}
-
-	// private List<DIBean<?>> getBuildListFor(DIBean<?> bean) {
-
-	@Override
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	protected <T> Set<DIBean<T>> getBeanOfTypeUncached(Class<T> cls, Class<? extends Annotation> annot) {
-		TypeToken<T> type = TypeToken.of(cls);
-
-		BiFunction<DIBean<?>, Class<? extends Annotation>, Boolean> beanHasAnnotation = (bean, annotation) -> {
-			Class<? extends Annotation> q = bean.getQualifier();
-			Class<? extends Annotation> o = bean.getNonQualifierAnnotation();
-			return (q != null && q.equals(annot)) || (o != null && o.equals(annot));
-		};
-
-		Stream<DIBean<?>> annotBeans = results.getAnnotationBeans()
-				.parallelStream()
-				.filter(bean -> bean.getProviderType()
-						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
-		Stream<DIBean<?>> interfaceBeans = results.getInterfaceBeans()
-				.parallelStream()
-				.filter(bean -> bean.getProviderType()
-						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
-		Stream<DIBean<?>> superclassBeans = results.getSubclassBeans()
-				.parallelStream()
-				.filter(bean -> bean.getProviderType()
-						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
-		Stream<DIBean<?>> generatedBeans = results.getGeneratedBeans()
-				.parallelStream()
-				.filter(bean -> bean.getProviderType()
-						.isSubtypeOf(type) && beanHasAnnotation.apply(bean, annot));
-
-		Set<DIBean<?>> beans = Stream.of(annotBeans, interfaceBeans, superclassBeans, generatedBeans)
-				.flatMap(s -> s)
-				.collect(Collectors.toSet());
-		logger.debug("Added {} in cache", beans);
-
-		return (Set) beans;
-	}
-
-	// 	if (!mutableGraph.nodes().contains(bean)) {
-	// 		logger.warn("Bean {} not present", bean);
-	// 		return Collections.emptyList();
-	// 	}
-
-	// 	Traverser<DIBean<?>> traverser = Traverser.forGraph(mutableGraph);
-	// 	Iterable<DIBean<?>> dfsIterator = traverser.depthFirstPostOrder(bean);
-
-	// 	List<DIBean<?>> buildList = Lists.newArrayList(dfsIterator);
-	// 	buildList.remove(buildList.size() - 1);
-
-	// 	return Collections.unmodifiableList(buildList);
-	// }
-
 }

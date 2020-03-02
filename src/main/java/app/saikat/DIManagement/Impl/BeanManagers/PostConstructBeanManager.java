@@ -1,37 +1,28 @@
 package app.saikat.DIManagement.Impl.BeanManagers;
 
 import java.lang.annotation.Annotation;
-import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.annotation.PostConstruct;
 
 import com.google.common.reflect.TypeToken;
 
-import app.saikat.Annotations.DIManagement.ScanAnnotation;
+import app.saikat.Annotations.DIManagement.Scan;
 import app.saikat.DIManagement.Exceptions.NotValidBean;
-import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.Results;
 
 public class PostConstructBeanManager extends BeanManagerImpl {
 
 	// Map of parent (enclosing class) bean to set of setter beans
 	private Map<DIBean<?>, DIBean<?>> postConstructBeans = new HashMap<>();
 
-	public PostConstructBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
-			DIBeanManagerHelper helper) {
-		super(results, objectMap, helper);
-	}
-
 	@Override
-	public Map<Class<? extends Annotation>, ScanAnnotation> addAnnotationsToScan() {
-		return Collections.singletonMap(PostConstruct.class, createScanAnnotationWithBeanManager(this.getClass()));
+	public Map<Class<?>, Scan> addToScan() {
+		return Collections.singletonMap(PostConstruct.class, createScanObject());
 	}
 
 	@Override
@@ -46,7 +37,7 @@ public class PostConstructBeanManager extends BeanManagerImpl {
 
 	@Override
 	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
-			Collection<DIBean<?>> toBeResolved) {
+			Collection<DIBean<?>> toBeResolved, Collection<Class<? extends Annotation>> qualifierAnnotations) {
 
 		if (target.getInvokable()
 				.getParameters()
@@ -54,7 +45,7 @@ public class PostConstructBeanManager extends BeanManagerImpl {
 			throw new NotValidBean(target, "PostConstruct should not have parameters");
 		}
 
-		List<DIBean<?>> dependencies = super.resolveDependencies(target, alreadyResolved, toBeResolved);
+		List<DIBean<?>> dependencies = super.resolveDependencies(target, alreadyResolved, toBeResolved, qualifierAnnotations);
 		postConstructBeans.put(dependencies.get(0), target);
 		return dependencies;
 	}

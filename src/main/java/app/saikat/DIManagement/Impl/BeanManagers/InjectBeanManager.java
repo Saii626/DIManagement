@@ -1,7 +1,6 @@
 package app.saikat.DIManagement.Impl.BeanManagers;
 
 import java.lang.annotation.Annotation;
-import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -13,12 +12,10 @@ import javax.inject.Inject;
 
 import com.google.common.reflect.TypeToken;
 
-import app.saikat.Annotations.DIManagement.ScanAnnotation;
+import app.saikat.Annotations.DIManagement.Scan;
 import app.saikat.DIManagement.Exceptions.NotValidBean;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
-import app.saikat.DIManagement.Impl.Helpers.DIBeanManagerHelper;
 import app.saikat.DIManagement.Interfaces.DIBean;
-import app.saikat.DIManagement.Interfaces.Results;
 import app.saikat.PojoCollections.Utils.CommonFunc;
 
 public class InjectBeanManager extends BeanManagerImpl {
@@ -26,14 +23,9 @@ public class InjectBeanManager extends BeanManagerImpl {
 	// Map of parent (enclosing class) bean to set of setter beans
 	private Map<DIBean<?>, Set<DIBean<?>>> setterInjectBeans = new HashMap<>();
 
-	public InjectBeanManager(Results results, Map<DIBean<?>, Set<WeakReference<?>>> objectMap,
-			DIBeanManagerHelper helper) {
-		super(results, objectMap, helper);
-	}
-
 	@Override
-	public Map<Class<? extends Annotation>, ScanAnnotation> addAnnotationsToScan() {
-		return Collections.singletonMap(Inject.class, createScanAnnotationWithBeanManager(this.getClass()));
+	public Map<Class<?>, Scan> addToScan() {
+		return Collections.singletonMap(Inject.class, createScanObject());
 	}
 
 	@Override
@@ -54,7 +46,7 @@ public class InjectBeanManager extends BeanManagerImpl {
 
 	@Override
 	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
-			Collection<DIBean<?>> toBeResolved) {
+			Collection<DIBean<?>> toBeResolved, Collection<Class<? extends Annotation>> qualifierAnnotations){
 
 		if (!(target instanceof DIBeanImpl<?>)) {
 			throw new RuntimeException(
@@ -63,7 +55,7 @@ public class InjectBeanManager extends BeanManagerImpl {
 							.getSimpleName()));
 		}
 
-		List<DIBean<?>> deps = super.resolveDependencies(target, alreadyResolved, toBeResolved);
+		List<DIBean<?>> deps = super.resolveDependencies(target, alreadyResolved, toBeResolved, qualifierAnnotations);
 
 		if (((DIBeanImpl<?>) target).isMethod()) {
 			CommonFunc.addToMapSet(setterInjectBeans, deps.get(0), target);

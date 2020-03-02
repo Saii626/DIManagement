@@ -9,6 +9,8 @@ import com.google.common.collect.Lists;
 
 import org.junit.Test;
 
+import com.google.common.reflect.TypeToken;
+
 import app.saikat.DIManagement.Exceptions.CircularDependencyException;
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIManager;
@@ -20,10 +22,10 @@ public class Test_2 {
 		DIManager manager = DIManager.newInstance();
 
 		try {
-			manager.initialize("app.saikat.DIManagement.Test_2", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
+			manager.scan("app.saikat.DIManagement.Test_2", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 		} catch (CircularDependencyException e) {
-			DIBean<B> bBean = manager.getBeansOfType(B.class).iterator().next();
-			DIBean<D> dBean = manager.getBeansOfType(D.class).iterator().next();
+			DIBean<B> bBean = manager.getBeansOfType(TypeToken.of(B.class)).iterator().next();
+			DIBean<D> dBean = manager.getBeansOfType(TypeToken.of(D.class)).iterator().next();
 
 			// target, dependent
 			List<DIBean<?>> t1 = Lists.newArrayList(bBean, dBean);

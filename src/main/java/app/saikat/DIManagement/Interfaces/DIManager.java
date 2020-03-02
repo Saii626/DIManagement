@@ -7,16 +7,20 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import com.google.common.reflect.TypeToken;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import app.saikat.Annotations.DIManagement.NoQualifier;
+import app.saikat.DIManagement.Exceptions.BeanNotFoundException;
+
+/*------------------ Imports to impl --------------------*/
 import app.saikat.DIManagement.Impl.DIManagerImpl;
-import app.saikat.PojoCollections.CommonObjects.Tuple;
+import app.saikat.DIManagement.Impl.Repository.Repository;
+/*------------------ Imports to impl --------------------*/
 
 public abstract class DIManager {
-
-	protected final Logger logger = LogManager.getLogger(DIManager.class);
 
 	/**
 	 * Returns a new current instance of DIManager
@@ -26,122 +30,111 @@ public abstract class DIManager {
 		return new DIManagerImpl();
 	}
 
-	protected final Results results = new Results();
+	protected final Repository repository = new Repository();
 	protected final Map<DIBean<?>, Set<WeakReference<?>>> objectMap = new ConcurrentHashMap<>();
+	protected final Logger logger = LogManager.getLogger(DIManager.class);
 
 	/**
 	 * Performs classpath scanning, generation of dependency graph and creation of
-	 * providers  on classes found in pathsToScan
+	 * providers on classes found in pathsToScan. On successful, adds them to repository 
 	 * @param pathsToScan paths to scan
 	 */
-	public abstract void initialize(String... pathsToScan);
-
-	protected void makeResultImmutable() {
-		results.makeImmutable();
-	}
+	public abstract void scan(String... pathsToScan);
 
 	/**
-	 * Get result of scanning
-	 * @return scan result
+	 * Returns a set of beans with specific type. This is the non qualifier, interface or
+	 * superclass of the bean
+	 * @param type the non qualifier / interface / superclass
+	 * @return set of beans which satisfies the condition
 	 */
-	public Results getResult() {
-		return results;
+	public Set<DIBean<?>> getBeansWithType(Class<?> type) {
+		return this.repository.getBeans()
+				.parallelStream()
+				.filter(b -> {
+					switch (b.getBeanType()) {
+					case ANNOTATION:
+						return b.getNonQualifierAnnotation()
+								.equals(type);
+					case INTERFACE:
+					case SUBCLASS:
+						return b.getSuperClass()
+								.equals(type);
+					default:
+						return false;
+					}
+				})
+				.collect(Collectors.toSet());
 	}
-
-	/**
-	 * Gets all beans with a particular Qualifier annotation
-	 * @param annotation the Qualifier annotation
-	 * @return set of beans which have the required qualifier annotation
-	 */
-	public Set<DIBean<?>> getBeansWithQualifierAnnotation(Class<? extends Annotation> annotation) {
-		return results.getAnnotationMap()
-				.get(annotation);
-	}
-
-	/**
-	 * Gets all beans which implement required interface
-	 * @param interfaceCls the interface
-	 * @return set of beans which impletents the required interface
-	 */
-	public Set<DIBean<?>> getBeansOfInterface(Class<?> interfaceCls) {
-		return results.getInterfacesMap()
-				.get(interfaceCls);
-	}
-
-	/**
-	 * Gets all beans which extends required superclass
-	 * @param superClass the superclass
-	 * @return set of beans which impletents the required superclass
-	 */
-	public Set<DIBean<?>> getBeansOfSuperClass(Class<?> superClass) {
-		return results.getSubClassesMap()
-				.get(superClass);
-	}
-
-	// Cache results of annotaions
-	private Map<Class<? extends Annotation>, Set<DIBean<?>>> cachedAnnotationMap = new ConcurrentHashMap<>();
-
-	/**
-	 * Finds beans annotated with specified annotation. Result is cached
-	 * @param annotation annotation searched for
-	 * @return set of beans with specified annotation
-	 */
-	public Set<DIBean<?>> getBeansAnnotatedWith(Class<? extends Annotation> annotation) {
-
-		if (!cachedAnnotationMap.containsKey(annotation)) {
-			synchronized (cachedAnnotationMap) {
-				if (!cachedAnnotationMap.containsKey(annotation)) {
-					Set<DIBean<?>> beans = results.getAnnotationBeans()
-							.parallelStream()
-							.filter(bean -> bean.getNonQualifierAnnotation()
-									.equals(annotation))
-							.collect(Collectors.toSet());
-
-					cachedAnnotationMap.put(annotation, beans);
-				}
-			}
-		}
-
-		return cachedAnnotationMap.get(annotation);
-	}
-
-	// Cache beans type
-	private final Map<Tuple<Class<?>, Class<? extends Annotation>>, Set<DIBean<?>>> cachedBeansMap = new ConcurrentHashMap<>();
 
 	/**
 	 * Returns set of beans which provides specified type of object and qualifier annotation
 	 * @param <T> type of object
-	 * @param cls class type of object required
+	 * @param typeToken typeToken of provider, i.e. type of object this bean generates
 	 * @param annot qualifier of the object
 	 * @return set of beans which satisfies the condition
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	public <T> Set<DIBean<T>> getBeansOfType(Class<T> cls, Class<? extends Annotation> annot) {
-		Tuple<Class<?>, Class<? extends Annotation>> key = Tuple.of(cls, annot);
-
-		if (!cachedBeansMap.containsKey(key)) {
-			synchronized (cachedBeansMap) {
-				if (!cachedBeansMap.containsKey(key)) {
-					Set<DIBean<T>> beans = getBeanOfTypeUncached(cls, annot);
-					logger.debug("Added {} in cache", beans);
-					cachedBeansMap.put(key, (Set) beans);
-				}
-			}
-		}
-
-		return (Set) cachedBeansMap.get(key);
+	public <T> Set<DIBean<T>> getBeansOfType(TypeToken<T> typeToken, Class<? extends Annotation> annot) {
+		return (Set) this.repository.getBeans()
+				.parallelStream()
+				.filter(b -> b.getProviderType()
+						.isSubtypeOf(typeToken)
+						&& b.getQualifier()
+								.equals(annot))
+				.collect(Collectors.toSet());
 	}
 
-	protected abstract <T> Set<DIBean<T>> getBeanOfTypeUncached(Class<T> cls, Class<? extends Annotation> annot);
+	/**
+	 * Special case when there is only 1 instance of type
+	 * @param <T> class type
+	 * @param type typetoken of whose bean is required
+	 * @param qualifier qualifier
+	 * @return returns the unique bean associated with this class
+	 * @throws BeanNotFoundException if no or multiple beans are found of this class type
+	 */
+	public <T> DIBean<T> getBeanOfType(TypeToken<T> type, Class<? extends Annotation> qualifier)
+			throws BeanNotFoundException {
+		Set<DIBean<T>> beans = getBeansOfType(type, qualifier);
+
+		if (beans.size() == 1) {
+			return beans.iterator()
+					.next();
+		} else {
+			throw new BeanNotFoundException(type, qualifier);
+		}
+	}
 
 	/**
 	 * Returns set of beans which provides specified type of object and has no qualifier annotation
 	 * @param <T> type of object
-	 * @param cls class type of object required
+	 * @param type type of object required
 	 * @return set of beans which satisfies the condition
 	 */
-	public <T> Set<DIBean<T>> getBeansOfType(Class<T> cls) {
-		return getBeansOfType(cls, NoQualifier.class);
+	public <T> Set<DIBean<T>> getBeansOfType(TypeToken<T> type) {
+		return getBeansOfType(type, NoQualifier.class);
+	}
+
+	/**
+	 * Returns all beans which have the specified qualifie annotation
+	 * @param qualifierAnnotation the qualifier annotation to search for
+	 * @return set of beans which have the specified qualifier annotation
+	 */
+	public Set<DIBean<?>> getBeansOfType(Class<? extends Annotation> qualifierAnnotation) {
+		return repository.getBeans()
+				.parallelStream()
+				.filter(b -> qualifierAnnotation.equals(b.getQualifier()))
+				.collect(Collectors.toSet());
+	}
+
+	/**
+	 * Special case when there is only 1 instance of type
+	 * @param <T> class type
+	 * @param cls class whose bean is required
+	 * @return returns the unique bean associated with this class
+	 * @throws BeanNotFoundException if no or multiple beans are found of this class type
+	 */
+	public <T> DIBean<T> getBeanOfType(TypeToken<T> cls) throws BeanNotFoundException {
+		return getBeanOfType(cls, NoQualifier.class);
 	}
 
 	/**
@@ -151,35 +144,5 @@ public abstract class DIManager {
 	 */
 	public Map<DIBean<?>, Set<WeakReference<?>>> getObjectMap() {
 		return this.objectMap;
-	}
-
-	/**
-	 * Special case when there is only 1 instance of type
-	 * @param <T> class type
-	 * @param cls class whose bean is required
-	 * @return returns the unique bean associated with this class
-	 * @throws RuntimeException if no or multiple beans are found of this class type
-	 */
-	public <T> DIBean<T> getBeanOfType(Class<T> cls) {
-		return getBeanOfType(cls, NoQualifier.class);
-	}
-
-	/**
-	 * Special case when there is only 1 instance of type
-	 * @param <T> class type
-	 * @param cls class whose bean is required
-	 * @param qualifier qualifier
-	 * @return returns the unique bean associated with this class
-	 * @throws RuntimeException if no or multiple beans are found of this class type
-	 */
-	public <T> DIBean<T> getBeanOfType(Class<T> cls, Class<? extends Annotation> qualifier) {
-		Set<DIBean<T>> beans = getBeansOfType(cls, qualifier);
-
-		if (beans.size() == 1) {
-			return beans.iterator()
-					.next();
-		} else {
-			throw new RuntimeException("No unique bean for " + cls.getSimpleName() + " found");
-		}
 	}
 }

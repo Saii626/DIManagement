@@ -45,14 +45,14 @@ task fatJar(type: Jar) {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-build.finalizedBy(copyToLib)
-build.finalizedBy(fatJar)
-build.dependsOn(copyProj)
+jar.finalizedBy(copyToLib)
+jar.finalizedBy(fatJar)
+jar.dependsOn(copyProj)
 
 test {
     useJUnit()
-    // failFast = true
-    // maxParallelForks = 5
+    failFast = true
+    maxParallelForks = 5
 }
 
 dependencies {

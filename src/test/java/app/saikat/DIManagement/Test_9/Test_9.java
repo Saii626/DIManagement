@@ -11,6 +11,8 @@ import com.google.common.collect.Sets;
 
 import org.junit.Test;
 
+import com.google.common.reflect.TypeToken;
+
 import app.saikat.DIManagement.Interfaces.DIBean;
 import app.saikat.DIManagement.Interfaces.DIManager;
 
@@ -23,9 +25,9 @@ public class Test_9 {
 	public void test(){
 		DIManager manager = DIManager.newInstance();
 
-		manager.initialize("app.saikat.DIManagement.Test_9", "app.saikat.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
+		manager.scan("app.saikat.DIManagement.Test_9", "app.saikat.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
-		DIBean<A> aBean = manager.getBeansOfType(A.class).iterator().next();
+		DIBean<A> aBean = manager.getBeansOfType(TypeToken.of(A.class)).iterator().next();
 		Provider<A> provider = aBean.getProvider();
 
 		assertTrue("A was not created", A.getNoOfInstances() == 0);
@@ -35,7 +37,7 @@ public class Test_9 {
 		A a1 = provider.get();
 		A a2 = provider.get();
 		A a3 = provider.get();
-		C c = manager.getBeansOfType(C.class).iterator().next().getProvider().get();
+		C c = manager.getBeansOfType(TypeToken.of(C.class)).iterator().next().getProvider().get();
 
 		assertTrue("3 instances of A created", A.getNoOfInstances() == 3);
 		assertTrue("B was not created", B.getNoOfInstances() == 0);

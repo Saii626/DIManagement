@@ -1,4 +1,4 @@
-package app.saikat.DIManagement.Test_16;
+package app.saikat.DIManagement.Test_17.Folder_1;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -10,4 +10,4 @@ import javax.inject.Qualifier;
 @Qualifier
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.PARAMETER, ElementType.METHOD, ElementType.TYPE })
-public @interface Q2 {}
+public @interface Q1 {}

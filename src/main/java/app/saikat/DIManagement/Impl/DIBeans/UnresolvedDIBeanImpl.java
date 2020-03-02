@@ -85,4 +85,9 @@ public class UnresolvedDIBeanImpl<T> implements DIBean<T> {
 
 		return "u[" + qString + ":" + tString + "]";
 	}
+
+	@Override
+	public UnresolvedDIBeanImpl<T> copy() {
+		return new UnresolvedDIBeanImpl<>(typeToken, qualifier);
+	}
 }
