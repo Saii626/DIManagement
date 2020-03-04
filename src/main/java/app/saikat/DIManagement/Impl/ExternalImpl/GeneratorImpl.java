@@ -27,10 +27,14 @@ public class GeneratorImpl<T> implements Generator<T> {
 	}
 
 	private boolean validateInput(Object[] args) {
+
 		if (args.length != generatorParams.size())
 			return false;
 
 		for (int i = 0; i < args.length; i++) {
+
+			if (args[i] == null) return !generatorParams.get(i).getProviderType().isPrimitive();
+
 			if (!generatorParams.get(i)
 					.getProviderType()
 					.wrap()

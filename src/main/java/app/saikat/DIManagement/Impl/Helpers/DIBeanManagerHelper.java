@@ -53,7 +53,7 @@ public class DIBeanManagerHelper {
 	 * Gets the manager of a class. The cls is either a non qualifier, interface or superclass
 	 * @param cls the class whose manager is being queried
 	 * @param currentScanRepo the current scan repo. This is temporary repo. If no problem occurs,
-	 * will be merged back to globalRepo after scanning
+	 * will be merged back to globalRepo after scanning. Can be null if not required
 	 * @param globalRepo the global repo containing all already scanned objects
 	 * @return manager of the cls. currentScanRepo is checked first before checking globalRepo
 	 * @throws NoManagerFoundException exception is thrown when no DIBeanManager is found for the requested cls
@@ -85,7 +85,7 @@ public class DIBeanManagerHelper {
 
 		};
 
-		DIBeanManager mgr = managerGetter.apply(currentScanRepo);
+		DIBeanManager mgr = currentScanRepo != null ? managerGetter.apply(currentScanRepo) : null; 
 		if (mgr == null)
 			mgr = managerGetter.apply(globalRepo);
 

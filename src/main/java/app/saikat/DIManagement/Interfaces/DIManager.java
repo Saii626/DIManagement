@@ -84,6 +84,11 @@ public abstract class DIManager {
 				.collect(Collectors.toSet());
 	}
 
+	public <T> Set<DIBean<T>> getBeansOfType(Class<T> cls, Class<? extends Annotation> annot) {
+		return getBeansOfType(TypeToken.of(cls), annot);
+	}
+
+
 	/**
 	 * Special case when there is only 1 instance of type
 	 * @param <T> class type
@@ -104,6 +109,12 @@ public abstract class DIManager {
 		}
 	}
 
+
+	public <T> DIBean<T> getBeanOfType(Class<T> type, Class<? extends Annotation> qualifier)
+			throws BeanNotFoundException {
+		return getBeanOfType(TypeToken.of(type), qualifier);
+	}
+
 	/**
 	 * Returns set of beans which provides specified type of object and has no qualifier annotation
 	 * @param <T> type of object
@@ -114,12 +125,17 @@ public abstract class DIManager {
 		return getBeansOfType(type, NoQualifier.class);
 	}
 
+
+	public <T> Set<DIBean<T>> getBeansOfType(Class<T> type) {
+		return getBeansOfType(TypeToken.of(type));
+	}
+
 	/**
 	 * Returns all beans which have the specified qualifie annotation
 	 * @param qualifierAnnotation the qualifier annotation to search for
 	 * @return set of beans which have the specified qualifier annotation
 	 */
-	public Set<DIBean<?>> getBeansOfType(Class<? extends Annotation> qualifierAnnotation) {
+	public Set<DIBean<?>> getBeansWithQualifier(Class<? extends Annotation> qualifierAnnotation) {
 		return repository.getBeans()
 				.parallelStream()
 				.filter(b -> qualifierAnnotation.equals(b.getQualifier()))
@@ -136,6 +152,11 @@ public abstract class DIManager {
 	public <T> DIBean<T> getBeanOfType(TypeToken<T> cls) throws BeanNotFoundException {
 		return getBeanOfType(cls, NoQualifier.class);
 	}
+
+	public <T> DIBean<T> getBeanOfType(Class<T> cls) throws BeanNotFoundException {
+		return getBeanOfType(TypeToken.of(cls));
+	}
+	
 
 	/**
 	 * Returns immutable view of object map. Underlying map may change anytime, and
