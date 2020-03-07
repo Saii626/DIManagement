@@ -85,11 +85,14 @@ public class DIBeanManagerHelper {
 
 		};
 
-		DIBeanManager mgr = currentScanRepo != null ? managerGetter.apply(currentScanRepo) : null; 
+		DIBeanManager mgr = currentScanRepo != null ? managerGetter.apply(currentScanRepo) : null;
 		if (mgr == null)
 			mgr = managerGetter.apply(globalRepo);
 
 		if (mgr == null) {
+			logger.error("No manager found for {}. ScanData in currentRepo: {}, globalRepo: {}", cls, currentScanRepo != null
+					? currentScanRepo.getScanData()
+					: null, globalRepo.getScanData());
 			throw new NoManagerFoundException(cls);
 		}
 

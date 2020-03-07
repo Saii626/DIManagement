@@ -84,6 +84,13 @@ public abstract class DIManager {
 				.collect(Collectors.toSet());
 	}
 
+	/**
+	 * Returns set of beans which provides specified type of object and qualifier annotation
+	 * @param <T> type of object
+	 * @param cls class of provider, i.e. type of object this bean generates
+	 * @param annot qualifier of the object
+	 * @return set of beans which satisfies the condition
+	 */
 	public <T> Set<DIBean<T>> getBeansOfType(Class<T> cls, Class<? extends Annotation> annot) {
 		return getBeansOfType(TypeToken.of(cls), annot);
 	}
@@ -109,7 +116,14 @@ public abstract class DIManager {
 		}
 	}
 
-
+	/**
+	 * Special case when there is only 1 instance of type
+	 * @param <T> class type
+	 * @param type class type of whose bean is required
+	 * @param qualifier qualifier
+	 * @return returns the unique bean associated with this class
+	 * @throws BeanNotFoundException if no or multiple beans are found of this class type
+	 */
 	public <T> DIBean<T> getBeanOfType(Class<T> type, Class<? extends Annotation> qualifier)
 			throws BeanNotFoundException {
 		return getBeanOfType(TypeToken.of(type), qualifier);
@@ -125,7 +139,12 @@ public abstract class DIManager {
 		return getBeansOfType(type, NoQualifier.class);
 	}
 
-
+	/**
+	 * Returns set of beans which provides specified type of object and has no qualifier annotation
+	 * @param <T> type of object
+	 * @param type class type of object required
+	 * @return set of beans which satisfies the condition
+	 */
 	public <T> Set<DIBean<T>> getBeansOfType(Class<T> type) {
 		return getBeansOfType(TypeToken.of(type));
 	}
@@ -145,7 +164,7 @@ public abstract class DIManager {
 	/**
 	 * Special case when there is only 1 instance of type
 	 * @param <T> class type
-	 * @param cls class whose bean is required
+	 * @param cls type whose bean is required
 	 * @return returns the unique bean associated with this class
 	 * @throws BeanNotFoundException if no or multiple beans are found of this class type
 	 */
@@ -153,6 +172,13 @@ public abstract class DIManager {
 		return getBeanOfType(cls, NoQualifier.class);
 	}
 
+	/**
+	 * Special case when there is only 1 instance of type
+	 * @param <T> class type
+	 * @param cls class whose bean is required
+	 * @return returns the unique bean associated with this class
+	 * @throws BeanNotFoundException if no or multiple beans are found of this class type
+	 */
 	public <T> DIBean<T> getBeanOfType(Class<T> cls) throws BeanNotFoundException {
 		return getBeanOfType(TypeToken.of(cls));
 	}
