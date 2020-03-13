@@ -328,7 +328,7 @@ public class ClasspathScanner {
 			toUse.setAccessible(true);
 
 			try {
-				DIBeanManager beanManager = DIBeanManagerHelper.getManagerOf(o, curentRepo, globalRepo);
+				DIBeanManager beanManager = DIBeanManagerHelper.getManagerOf(superClass == null ? o : superClass, curentRepo, globalRepo);
 				return new DIBeanImpl<>(toUse, q, o, superClass, cls.hasAnnotation(SINGLETON_ANNOTATION), beanManager,
 						type);
 			} catch (NoManagerFoundException e) {
