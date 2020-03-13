@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Function;
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,23 +63,24 @@ public class DIBeanManagerHelper {
 	public static DIBeanManager getManagerOf(Class<?> cls, Repository currentScanRepo, Repository globalRepo)
 			throws NoManagerFoundException {
 		if (cls == null)
-			return null;
+			throw new NullPointerException("Class cannot be null");
 
 		Function<Repository, DIBeanManager> managerGetter = repo -> {
 			Scan scan = repo.getScanData()
 					.get(cls);
 
 			if (scan == null)
-				return null;
+				throw new NullPointerException("Scan data for " + cls.getName() + " null");
+
 			Class<?>[] managerClasses = scan.beanManager();
 
 			if (managerClasses.length == 0 || managerClasses.length > 1)
-				return null;
+			throw new RuntimeException(String.format("Invalid Scan data. Found %s managerClasses",  Lists.newArrayList(managerClasses).toString()));
 
 			Class<?> managerClass = managerClasses[0];
 
 			if (managerClass == null || !DIBeanManager.class.isAssignableFrom(managerClass))
-				return null;
+				throw new NullPointerException("Manager not of type DIBeanManager");
 
 			return repo.getBeanManagers()
 					.get((Class<? extends DIBeanManager>) managerClass);
