@@ -40,6 +40,6 @@ public class NoOpBeanManager extends BeanManagerImpl {
 	}
 
 	@Override
-	public void newInstanceCreated(DIBean<?> bean, Object instance) {}
+	public <T> void newInstanceCreated(DIBean<T> bean, T instance) {}
 
 }

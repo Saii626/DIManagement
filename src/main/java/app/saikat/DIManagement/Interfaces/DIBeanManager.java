@@ -7,8 +7,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Provider;
+
+import com.google.common.base.Preconditions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -39,12 +42,23 @@ public abstract class DIBeanManager {
 	 */
 	protected Map<DIBean<?>, Set<WeakReference<?>>> objectMap = null;
 
+	protected Map<DIBean<?>, Set<WeakReference<DIBeanInvocationListener<?>>>> listenersMap = new ConcurrentHashMap<>();
+
+	/**
+	 * Sets the repository
+	 * @param repo repository to point to
+	 */
 	public void setRepo(Repository repo) {
 		this.repo = repo;
 	}
 
 	public void setObjectMap(Map<DIBean<?>, Set<WeakReference<?>>> objectMap) {
 		this.objectMap = objectMap;
+	}
+
+	public <T> void addListenerForBean(DIBean<T> bean, DIBeanInvocationListener<T> listener) {
+		Preconditions.checkArgument(bean.getBeanManager().equals(this), String.format("Bean %s is not registered for BeanManager %s", bean.toString(), this.toString()));
+		CommonFunc.safeAddToMapSet(listenersMap, bean, new WeakReference<>(listener));
 	}
 
 	/**
@@ -91,8 +105,10 @@ public abstract class DIBeanManager {
 	 * from both, the globalRepo and localRepo
 	 * @return list of resolved dependencies of the bean
 	 */
-	public abstract <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
-			Collection<DIBean<?>> toBeResolved, Collection<Class<? extends Annotation>> allQualifiers);
+	public <T> List<DIBean<?>> resolveDependencies(DIBean<T> target, Collection<DIBean<?>> alreadyResolved,
+			Collection<DIBean<?>> toBeResolved, Collection<Class<? extends Annotation>> allQualifiers) {
+		return null;
+	}
 
 	/**
 	 * Callback called after all dependencies of beans have been resolved
@@ -116,8 +132,10 @@ public abstract class DIBeanManager {
 	 * postConstruct
 	 * @return providerBean for target bean
 	 */
-	public abstract <T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target,
-			InjectBeanManager injectBeanManager, PostConstructBeanManager postConstructBeanManager);
+	public <T> ConstantProviderBean<Provider<T>> createProviderBean(DIBean<T> target,
+			InjectBeanManager injectBeanManager, PostConstructBeanManager postConstructBeanManager) {
+		return null;
+	}
 
 	/**
 	 * Callback called after all providers are created
@@ -126,11 +144,29 @@ public abstract class DIBeanManager {
 
 	/**
 	 * Callback called when provider of the bean is executed
+	 * @param <T> type of object created
 	 * @param bean the bean whose provider was executed
 	 * @param instance the new instance created as a result of the operation
 	 */
-	public void newInstanceCreated(DIBean<?> bean, Object instance) {
+	@SuppressWarnings("unchecked")
+	public <T> void newInstanceCreated(DIBean<T> bean, T instance) {
 		CommonFunc.addToMapSet(this.objectMap, bean, new WeakReference<>(instance));
+		if (listenersMap.containsKey(bean)) {
+			Set<WeakReference<DIBeanInvocationListener<?>>> listeners = listenersMap.get(bean);
+
+			synchronized (listeners) {
+				listeners.removeIf(l -> l.get() == null);
+
+				if (listeners.isEmpty()) {
+					listenersMap.remove(bean);
+					return;
+				}
+
+				listeners.parallelStream()
+						.map(l -> (DIBeanInvocationListener<T>) l.get())
+						.forEach(l -> l.onObjectCreated(bean, instance));
+			}
+		}
 	}
 
 	/**
