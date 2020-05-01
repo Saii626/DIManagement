@@ -17,7 +17,7 @@ public class Test_12 {
 	@Test
 	public void test() throws BeanNotFoundException {
 		DIManager manager = DIManager.newInstance();
-		manager.scan("app.saikat.DIManagement.Test_12", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
+		manager.scan("app.saikat.DIManagement.Test_12", "app.saikat.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		A a = manager.getBeanOfType(TypeToken.of(A.class)).getProvider().get();
 		B b = manager.getBeanOfType(TypeToken.of(B.class)).getProvider().get();

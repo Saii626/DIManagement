@@ -9,7 +9,7 @@ public class Test_17 {
 	// @Test
 	public void test() {
 		DIManager manager = DIManager.newInstance();
-		manager.scan("app.saikat.DIManagement.Test_16", "app.saikat.DIManagement.Annotations",
+		manager.scan("app.saikat.DIManagement.Test_16", "app.saikat.Annotations",
 				"app.saikat.DIManagement.Impl.BeanManagers");
 	}
 }

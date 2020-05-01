@@ -22,7 +22,7 @@ public class Test_2 {
 		DIManager manager = DIManager.newInstance();
 
 		try {
-			manager.scan("app.saikat.DIManagement.Test_2", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
+			manager.scan("app.saikat.DIManagement.Test_2", "app.saikat.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 		} catch (CircularDependencyException e) {
 			DIBean<B> bBean = manager.getBeansOfType(TypeToken.of(B.class)).iterator().next();
 			DIBean<D> dBean = manager.getBeansOfType(TypeToken.of(D.class)).iterator().next();

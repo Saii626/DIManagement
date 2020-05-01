@@ -20,7 +20,7 @@ public class Test_8 {
 
 		DIManager manager = DIManager.newInstance();
 
-		manager.scan("app.saikat.DIManagement.Test_8", "app.saikat.Annotations.DIManagement", "app.saikat.DIManagement.Impl.BeanManagers");
+		manager.scan("app.saikat.DIManagement.Test_8", "app.saikat.DIManagement", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		DIBean<A> bean = manager.getBeansOfType(TypeToken.of(A.class)).iterator().next();
 

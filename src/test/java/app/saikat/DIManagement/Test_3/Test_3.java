@@ -24,7 +24,7 @@ public class Test_3 {
 	@Test
 	public void test() {
 		DIManager manager = DIManager.newInstance();
-		manager.scan("app.saikat.DIManagement.Test_3", "app.saikat.DIManagement.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
+		manager.scan("app.saikat.DIManagement.Test_3", "app.saikat.Annotations", "app.saikat.DIManagement.Impl.BeanManagers");
 
 		A a = manager.getBeansOfType(TypeToken.of(A.class)).iterator().next().getProvider().get();
 		B b = manager.getBeansOfType(TypeToken.of(B.class)).iterator().next().getProvider().get();
