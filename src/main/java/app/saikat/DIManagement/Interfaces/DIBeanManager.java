@@ -57,7 +57,9 @@ public abstract class DIBeanManager {
 	}
 
 	public <T> void addListenerForBean(DIBean<T> bean, DIBeanInvocationListener<T> listener) {
-		Preconditions.checkArgument(bean.getBeanManager().equals(this), String.format("Bean %s is not registered for BeanManager %s", bean.toString(), this.toString()));
+		Preconditions.checkArgument(bean.getBeanManager()
+				.equals(this),
+				String.format("Bean %s is not registered for BeanManager %s", bean.toString(), this.toString()));
 		CommonFunc.safeAddToMapSet(listenersMap, bean, new WeakReference<>(listener));
 	}
 
@@ -84,7 +86,8 @@ public abstract class DIBeanManager {
 	 * Callback called after all scan has been done. Create additional beans in this
 	 * if necessary
 	 */
-	public void scanComplete() {}
+	public void scanComplete() {
+	}
 
 	/**
 	 * If dependenies of the bean scould be scanned and resolved
@@ -113,7 +116,8 @@ public abstract class DIBeanManager {
 	/**
 	 * Callback called after all dependencies of beans have been resolved
 	 */
-	public void dependencyResolved() {}
+	public void dependencyResolved() {
+	}
 
 	/**
 	 * If provider of the bean scould be scanned and resolved
@@ -140,7 +144,8 @@ public abstract class DIBeanManager {
 	/**
 	 * Callback called after all providers are created
 	 */
-	public void providerCreated() {}
+	public void providerCreated() {
+	}
 
 	/**
 	 * Callback called when provider of the bean is executed
@@ -162,6 +167,7 @@ public abstract class DIBeanManager {
 					return;
 				}
 
+				logger.debug("Notifying listeners: {}", listeners);
 				listeners.parallelStream()
 						.map(l -> (DIBeanInvocationListener<T>) l.get())
 						.forEach(l -> l.onObjectCreated(bean, instance));

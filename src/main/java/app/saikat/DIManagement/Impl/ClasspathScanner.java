@@ -164,7 +164,6 @@ public class ClasspathScanner {
 		allClasses.parallelStream()
 				.forEach(cls -> {
 					ClassInfo otherAnnot = getAnnotation(cls.getAnnotations(), otherAnnotations);
-					// logger.debug("Scanning {}\n for annotations: {}\nother annotations:{}\nother Annot:{}", cls.getSimpleName(), cls.getAnnotations(), otherAnnotations, otherAnnot);
 					Set<DIBeanImpl<?>> consBeans = new HashSet<>();
 
 					// Scanning mehods
