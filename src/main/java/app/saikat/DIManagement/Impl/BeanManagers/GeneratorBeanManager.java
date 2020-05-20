@@ -66,7 +66,7 @@ public class GeneratorBeanManager extends BeanManagerImpl {
 		}
 
 		ConstantProviderBean<Generator<?>> genBean = (ConstantProviderBean<Generator<?>>) target;
-		DIBeanImpl<?> t = toBeGeneratedMap.get((genBean));
+		DIBeanImpl<?> t = toBeGeneratedMap.get(genBean);
 		logger.debug("Scanning dependencies of {}", t);
 		DependencyHelper.scanAndSetDependencies(t, qualifierAnnotations);
 		List<DIBean<?>> unresolvedDependencies = t.getDependencies();
@@ -88,7 +88,7 @@ public class GeneratorBeanManager extends BeanManagerImpl {
 				.resolveAndSetDependencies(t, alreadyResolved, toBeResolved);
 
 		logger.debug("Creating Generator: {} with generator params: {}", genBean, resolvedDependencies);
-		Generator<?> generator = new GeneratorImpl<>(t, generatorParams);
+		Generator<?> generator = new GeneratorImpl<>(t, generatorParams, this);
 
 		genBean.setProvider(() -> generator);
 
@@ -100,22 +100,6 @@ public class GeneratorBeanManager extends BeanManagerImpl {
 	public boolean shouldCreateProvider() {
 		return false;
 	}
-	// @SuppressWarnings("rawtypes")
-	// private void createGeneratorBean(DIBeanImpl<?> bean, List<DIBean<?>> generatorParams) {
-
-	// 	logger.debug("Creating generator: {} with generator params: {}", bean, generatorParams);
-	// 	Generator<?> generator = new GeneratorImpl<>(bean, generatorParams);
-
-	// 	ConstantProviderBean<Generator<?>> genBean = toBeGeneratedMap.get(bean);
-	// 	genBean.setProvider(new Provider<Generator<?>>() {
-	// 		@Override
-	// 		public Generator get() {
-	// 			return generator;
-	// 		}
-	// 	});
-
-	// 	toBeGeneratedMap.remove(bean);
-	// }
 
 	@Override
 	public void dependencyResolved() {

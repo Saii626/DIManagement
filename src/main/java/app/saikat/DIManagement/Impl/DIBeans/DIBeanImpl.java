@@ -193,40 +193,8 @@ public class DIBeanImpl<T> implements DIBean<T> {
 		String qString = qualifier != null ? "@" + qualifier.getSimpleName() : "null";
 		String nqString = nonQualifier != null ? "@" + nonQualifier.getSimpleName() : "null";
 		String tString = getProviderType().toString();
+		String methodName = this.invokable.getName();
 
-		return "[" + qString + ":" + nqString + ":" + tString + "]";
+		return "[" + qString + ":" + nqString + ":" + methodName + "(" + tString + ")]";
 	}
 }
-
-// /**
-//  * Only used by toString method to generate string representation of the bean
-//  * @return qualifier representation of the string
-//  */
-// protected String getQualifierString() {
-// 	return qualifier != null ? "@" + qualifier.getSimpleName() : "null";
-// }
-
-// /**
-//  * Only used by toString method to generate string representation of the bean
-//  * @return non qualifier representation of the string
-//  */
-// protected String getNonQualifierString() {
-// 	return nonQualifier != null ? "@" + nonQualifier.getSimpleName() : "null";
-// }
-
-// /**
-//  * Only used by toString method to generate string representation of the bean
-//  * @return type representation of the string
-//  */
-// protected String getTypeString() {
-// 	return getProviderType().toString();
-// }
-
-/**
- * Only used by toString method to generate string representation of the bean
- * @return generic parameter representation of the string
- */
-// protected String getGenericParamString() {
-// 	return genericParameters != null && genericParameters.size() > 0 ? "<" + genericParameters.toString() + ">"
-// 			: "";
-// }

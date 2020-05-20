@@ -2,8 +2,10 @@ package app.saikat.DIManagement.Interfaces;
 
 import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -11,12 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import javax.inject.Provider;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import app.saikat.Annotations.DIManagement.Scan;
+import app.saikat.PojoCollections.CommonObjects.Either;
 import app.saikat.PojoCollections.Utils.CommonFunc;
 
 /*------------------ Imports to impl --------------------*/
@@ -42,8 +43,18 @@ public abstract class DIBeanManager {
 	 */
 	protected Map<DIBean<?>, Set<WeakReference<?>>> objectMap = null;
 
-	protected Map<DIBean<?>, Set<WeakReference<DIBeanInvocationListener<?>>>> listenersMap = new ConcurrentHashMap<>();
+	private static Map<Either<DIBean<?>, Class<?>>, Set<WeakReference<DIBeanInvocationListener<?>>>> listenersMap = new ConcurrentHashMap<>();
 
+	public static <T> void addListenerForBean(DIBean<T> bean, DIBeanInvocationListener<T> listener) {
+		// Preconditions.checkArgument(bean.getBeanManager()
+		// 		.equals(this),
+		// 		String.format("Bean %s is not registered for BeanManager %s", bean.toString(), this.toString()));
+		CommonFunc.safeAddToMapSet(listenersMap, Either.left(bean), new WeakReference<>(listener));
+	}
+
+	public static <T> void addListenerForClass(Class<T> cls, DIBeanInvocationListener<T> listener) {
+		CommonFunc.safeAddToMapSet(listenersMap, Either.right(cls), new WeakReference<>(listener));
+	}
 	/**
 	 * Sets the repository
 	 * @param repo repository to point to
@@ -56,12 +67,7 @@ public abstract class DIBeanManager {
 		this.objectMap = objectMap;
 	}
 
-	public <T> void addListenerForBean(DIBean<T> bean, DIBeanInvocationListener<T> listener) {
-		Preconditions.checkArgument(bean.getBeanManager()
-				.equals(this),
-				String.format("Bean %s is not registered for BeanManager %s", bean.toString(), this.toString()));
-		CommonFunc.safeAddToMapSet(listenersMap, bean, new WeakReference<>(listener));
-	}
+	
 
 	/**
 	 * Adds annotations / interfaces / superclasses to scan. This does not mean that
@@ -155,24 +161,44 @@ public abstract class DIBeanManager {
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> void newInstanceCreated(DIBean<T> bean, T instance) {
+		if (instance == null) return; // For void methods
+
 		CommonFunc.addToMapSet(this.objectMap, bean, new WeakReference<>(instance));
-		if (listenersMap.containsKey(bean)) {
-			Set<WeakReference<DIBeanInvocationListener<?>>> listeners = listenersMap.get(bean);
+		List<Set<WeakReference<DIBeanInvocationListener<?>>>> setOfListeners = Collections
+				.synchronizedList(new ArrayList<>());
 
-			synchronized (listeners) {
-				listeners.removeIf(l -> l.get() == null);
-
-				if (listeners.isEmpty()) {
-					listenersMap.remove(bean);
-					return;
-				}
-
-				logger.debug("Notifying listeners: {}", listeners);
-				listeners.parallelStream()
-						.map(l -> (DIBeanInvocationListener<T>) l.get())
-						.forEach(l -> l.onObjectCreated(bean, instance));
-			}
+		if (listenersMap.containsKey(Either.left(bean))) {
+			setOfListeners.add(listenersMap.get(Either.left(bean)));
 		}
+
+		Class<T> cls = (Class<T>) instance.getClass();
+		listenersMap.entrySet()
+				.parallelStream()
+				.filter(e -> e.getKey()
+						.getRight()
+						.isPresent()
+						&& cls.isAssignableFrom(e.getKey()
+								.getRight()
+								.get()))
+				.forEach(e -> setOfListeners.add(e.getValue()));
+			
+		setOfListeners.parallelStream().forEach( set -> {
+			synchronized (set) {
+				Iterator<WeakReference<DIBeanInvocationListener<?>>> it = set.iterator();
+
+				while (it.hasNext()) {
+					DIBeanInvocationListener<T> l = (DIBeanInvocationListener<T>) it.next()
+							.get();
+
+					if (l == null) {
+						it.remove();
+					} else {
+						logger.debug("Notifying listener: {}", l);
+						l.onObjectCreated(bean, instance);
+					}
+				}
+			}
+		});
 	}
 
 	/**

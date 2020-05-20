@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 
 import app.saikat.Annotations.DIManagement.Generator;
 import app.saikat.DIManagement.Exceptions.WrongGeneratorParamsProvided;
+import app.saikat.DIManagement.Impl.BeanManagers.GeneratorBeanManager;
 import app.saikat.DIManagement.Impl.DIBeans.DIBeanImpl;
 import app.saikat.DIManagement.Interfaces.DIBean;
 
@@ -18,12 +19,14 @@ public class GeneratorImpl<T> implements Generator<T> {
 
 	private final DIBeanImpl<T> partialBean;
 	private final List<DIBean<?>> generatorParams;
+	private final GeneratorBeanManager generatorBeanManager;
 
 	private Logger logger = LogManager.getLogger(this.getClass());
 
-	public GeneratorImpl(DIBeanImpl<T> bean, List<DIBean<?>> generatorParams) {
+	public GeneratorImpl(DIBeanImpl<T> bean, List<DIBean<?>> generatorParams, GeneratorBeanManager generatorBeanManager) {
 		this.partialBean = bean;
 		this.generatorParams = generatorParams;
+		this.generatorBeanManager = generatorBeanManager;
 	}
 
 	private boolean validateInput(Object[] args) {
@@ -99,7 +102,9 @@ public class GeneratorImpl<T> implements Generator<T> {
 		} catch (InvocationTargetException | IllegalAccessException e) {
 			logger.error("Error: ", e);
 		}
-		logger.info("Created new object {}", ret);
+		logger.debug("Created new object {}", ret);
+
+		this.generatorBeanManager.newInstanceCreated(this.partialBean, ret);
 		return ret;
 	}
 }
