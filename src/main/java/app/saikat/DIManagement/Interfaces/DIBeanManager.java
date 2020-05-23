@@ -55,6 +55,7 @@ public abstract class DIBeanManager {
 	public static <T> void addListenerForClass(Class<T> cls, DIBeanInvocationListener<T> listener) {
 		CommonFunc.safeAddToMapSet(listenersMap, Either.right(cls), new WeakReference<>(listener));
 	}
+
 	/**
 	 * Sets the repository
 	 * @param repo repository to point to
@@ -66,8 +67,6 @@ public abstract class DIBeanManager {
 	public void setObjectMap(Map<DIBean<?>, Set<WeakReference<?>>> objectMap) {
 		this.objectMap = objectMap;
 	}
-
-	
 
 	/**
 	 * Adds annotations / interfaces / superclasses to scan. This does not mean that
@@ -161,7 +160,10 @@ public abstract class DIBeanManager {
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> void newInstanceCreated(DIBean<T> bean, T instance) {
-		if (instance == null) return; // For void methods
+		if (instance == null)
+			return; // For void methods
+
+		logger.debug("Instance not null. Invoking listeners");
 
 		CommonFunc.addToMapSet(this.objectMap, bean, new WeakReference<>(instance));
 		List<Set<WeakReference<DIBeanInvocationListener<?>>>> setOfListeners = Collections
@@ -177,28 +179,30 @@ public abstract class DIBeanManager {
 				.filter(e -> e.getKey()
 						.getRight()
 						.isPresent()
-						&& cls.isAssignableFrom(e.getKey()
+						&& e.getKey()
 								.getRight()
-								.get()))
+								.get().isAssignableFrom(cls))
 				.forEach(e -> setOfListeners.add(e.getValue()));
-			
-		setOfListeners.parallelStream().forEach( set -> {
-			synchronized (set) {
-				Iterator<WeakReference<DIBeanInvocationListener<?>>> it = set.iterator();
+		logger.debug("All listeners are: {}", setOfListeners);
 
-				while (it.hasNext()) {
-					DIBeanInvocationListener<T> l = (DIBeanInvocationListener<T>) it.next()
-							.get();
+		setOfListeners.parallelStream()
+				.forEach(set -> {
+					synchronized (set) {
+						Iterator<WeakReference<DIBeanInvocationListener<?>>> it = set.iterator();
 
-					if (l == null) {
-						it.remove();
-					} else {
-						logger.debug("Notifying listener: {}", l);
-						l.onObjectCreated(bean, instance);
+						while (it.hasNext()) {
+							DIBeanInvocationListener<T> l = (DIBeanInvocationListener<T>) it.next()
+									.get();
+
+							if (l == null) {
+								it.remove();
+							} else {
+								logger.debug("Notifying listener: {}", l);
+								l.onObjectCreated(bean, instance);
+							}
+						}
 					}
-				}
-			}
-		});
+				});
 	}
 
 	/**
