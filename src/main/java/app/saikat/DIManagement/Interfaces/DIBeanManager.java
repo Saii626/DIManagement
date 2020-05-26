@@ -29,7 +29,7 @@ import app.saikat.DIManagement.Impl.Repository.Repository;
 
 public abstract class DIBeanManager {
 
-	protected Logger logger = LogManager.getLogger(DIBeanManager.class);
+	protected Logger logger = LogManager.getLogger(this.getClass());
 
 	/**
 	 * Object to repository. Initially this repository is localRepo. After successful

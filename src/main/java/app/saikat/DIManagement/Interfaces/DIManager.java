@@ -2,6 +2,9 @@ package app.saikat.DIManagement.Interfaces;
 
 import java.lang.annotation.Annotation;
 import java.lang.ref.WeakReference;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,7 +35,7 @@ public abstract class DIManager {
 
 	protected final Repository repository = new Repository();
 	protected final Map<DIBean<?>, Set<WeakReference<?>>> objectMap = new ConcurrentHashMap<>();
-	protected final Logger logger = LogManager.getLogger(DIManager.class);
+	protected final Logger logger = LogManager.getLogger(this.getClass());
 
 	/**
 	 * Performs classpath scanning, generation of dependency graph and creation of
@@ -183,13 +186,73 @@ public abstract class DIManager {
 		return getBeanOfType(TypeToken.of(cls));
 	}
 	
-
 	/**
-	 * Returns immutable view of object map. Underlying map may change anytime, and
-	 * trying to synchronize on the returned map won't be useful
-	 * @return an immutable view of object map (map of DIBean to set of objects created by provider of the bean)
+	 * Returns the global object map.
+	 * @return object map (map of DIBean to set of objects created by provider of the bean)
 	 */
 	public Map<DIBean<?>, Set<WeakReference<?>>> getObjectMap() {
 		return this.objectMap;
 	}
+
+	/**
+	 * Returns all instances(including subclass instances) of the specified class created by framework
+	 * @param <T> Type of class
+	 * @param cls instance type
+	 * @return set of all instances of the class
+	 */
+	public <T> Set<T> getInstancesOfType(Class<T> cls) {
+		return getInstancesOfType(TypeToken.of(cls));		
+	} 
+
+	/**
+	 * Returns all instances(including subtype instances) of the specified type created by framework
+	 * @param <T> Type of class
+	 * @param token instance type
+	 * @return set of all instances of the class
+	 */
+	public <T> Set<T> getInstancesOfType(TypeToken<T> token) {
+		return getInstancesOfType(token, NoQualifier.class);
+	} 
+
+	/**
+	 * Returns all instances(including subclass instances) of the specified class created by framework
+	 * @param <T> Type of class
+	 * @param cls instance type
+	 * @param qualifier qualifier annotation of the class
+	 * @return set of all instances of the class
+	 */
+	public <T> Set<T> getInstancesOfType(Class<T> cls, Class<? extends Annotation> qualifier) {
+		return getInstancesOfType(TypeToken.of(cls), qualifier);
+	}
+
+	/**
+	 * Returns all instances(including subtype instances) of the specified type created by framework
+	 * @param <T> Type of class
+	 * @param token instance type
+	 * @param qualifier qualifier annotation of the class
+	 * @return set of all instances of the class
+	 */
+	@SuppressWarnings({"unchecked" ,"rawtypes"})
+	public <T> Set<T> getInstancesOfType(TypeToken<T> token, Class<? extends Annotation> qualifier) {
+		Set<DIBean<T>> beans = getBeansOfType(token, qualifier);
+
+		Set<T> instances = Collections.synchronizedSet(new HashSet<>());
+		beans.parallelStream().forEach(b -> {
+			Set<WeakReference<T>> weakInstances = (Set) this.objectMap.get(b);
+			
+			Iterator<WeakReference<T>> it = weakInstances.iterator();
+			while(it.hasNext()) {
+				WeakReference<T> weakRef = it.next();
+				T t = weakRef.get();
+				if (t == null) {
+					it.remove();
+				} else {
+					instances.add(t);
+				}
+			}
+
+			this.objectMap.put((DIBean) b, (Set) weakInstances);
+		});
+		return instances;
+	} 
 }
