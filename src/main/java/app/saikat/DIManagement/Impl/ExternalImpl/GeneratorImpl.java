@@ -4,8 +4,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.reflect.TypeToken;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,7 +21,8 @@ public class GeneratorImpl<T> implements Generator<T> {
 
 	private Logger logger = LogManager.getLogger(this.getClass());
 
-	public GeneratorImpl(DIBeanImpl<T> bean, List<DIBean<?>> generatorParams, GeneratorBeanManager generatorBeanManager) {
+	public GeneratorImpl(DIBeanImpl<T> bean, List<DIBean<?>> generatorParams,
+			GeneratorBeanManager generatorBeanManager) {
 		this.partialBean = bean;
 		this.generatorParams = generatorParams;
 		this.generatorBeanManager = generatorBeanManager;
@@ -36,13 +35,16 @@ public class GeneratorImpl<T> implements Generator<T> {
 
 		for (int i = 0; i < args.length; i++) {
 
-			if (args[i] == null) return !generatorParams.get(i).getProviderType().isPrimitive();
+			if (args[i] == null)
+				return !generatorParams.get(i)
+						.getProviderType()
+						.isPrimitive();
 
 			if (!generatorParams.get(i)
 					.getProviderType()
 					.wrap()
-					.isSupertypeOf(TypeToken.of(args[i].getClass())
-							.wrap()))
+					.getRawType()
+					.isAssignableFrom(args[i].getClass()))
 				return false;
 		}
 
@@ -78,10 +80,12 @@ public class GeneratorImpl<T> implements Generator<T> {
 
 		logger.debug("Arguments to generator correct");
 
-
 		List<DIBean<?>> dependencies = partialBean.getDependencies();
 		List<Object> parameters = new ArrayList<>(dependencies.size());
-		parameters.add(dependencies.get(0) == null ? null : dependencies.get(0).getProvider().get());
+		parameters.add(dependencies.get(0) == null ? null
+				: dependencies.get(0)
+						.getProvider()
+						.get());
 
 		int argc = 0;
 		for (int i = 1; i < dependencies.size(); i++) {
@@ -89,7 +93,9 @@ public class GeneratorImpl<T> implements Generator<T> {
 				parameters.add(args[argc]);
 				argc++;
 			} else {
-				parameters.add(dependencies.get(i).getProvider().get());
+				parameters.add(dependencies.get(i)
+						.getProvider()
+						.get());
 			}
 		}
 
